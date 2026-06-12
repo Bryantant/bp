@@ -25,8 +25,9 @@ app_license = "mit"
 # ------------------
 
 # include js, css files in header of desk.html
-# app_include_css = "/assets/bp/css/bp.css"
-# app_include_js = "/assets/bp/js/bp.js"
+app_include_css = ["/assets/bp/css/custom.css"]
+web_include_css = ["/assets/bp/css/custom.css"]
+app_include_js = ["/assets/bp/js/desk_overrides.js"]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/bp/css/bp.css"
@@ -43,7 +44,11 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+	"Stock Entry": "public/js/stock_entry.js",
+	"Sales Invoice": "public/js/sales_invoice.js",
+	"Customer": "public/js/customer.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -144,6 +149,18 @@ app_license = "mit"
 # 		"on_trash": "method"
 # 	}
 # }
+
+doc_events = {
+	"Sales Invoice": {
+		"validate": "bp.overrides.sales_invoice.validate",
+		"before_print": "bp.overrides.sales_invoice.before_print",
+	},
+}
+
+# Print Events
+# ------------
+# Fires when a PDF is generated; covers the interactive "Download PDF" path.
+on_print_pdf = "bp.overrides.sales_invoice.on_print_pdf"
 
 # Scheduled Tasks
 # ---------------
@@ -246,4 +263,11 @@ app_license = "mit"
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
+
+fixtures = [
+	{"dt": "Custom Field", "filters": [["module", "=", "BP"]]},
+	{"dt": "Property Setter", "filters": [["module", "=", "BP"]]},
+	{"dt": "Client Script", "filters": [["module", "=", "BP"]]},
+	{"dt": "Workflow", "filters": [["name", "=", "Payment Entry Approval"]]},
+]
 

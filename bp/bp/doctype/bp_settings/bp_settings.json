@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-06-12 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "print_control_section",
+  "print_lock_reset_roles"
+ ],
+ "fields": [
+  {
+   "fieldname": "print_control_section",
+   "fieldtype": "Section Break",
+   "label": "Invoice Print Lock"
+  },
+  {
+   "description": "Roles allowed to reset the print lock on a Sales Invoice (so it can be printed again). System Manager can always reset.",
+   "fieldname": "print_lock_reset_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Print Lock Reset Roles",
+   "options": "BP Print Lock Reset Role"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-06-12 00:00:00",
+ "modified_by": "Administrator",
+ "module": "BP",
+ "name": "BP Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
