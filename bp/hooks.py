@@ -155,6 +155,9 @@ doc_events = {
 		"validate": "bp.overrides.sales_invoice.validate",
 		"before_print": "bp.overrides.sales_invoice.before_print",
 	},
+	"Payment Entry": {
+		"validate": "bp.overrides.payment_entry.validate",
+	},
 }
 
 # Print Events
