@@ -271,6 +271,7 @@ fixtures = [
 	{"dt": "Custom Field", "filters": [["module", "=", "BP"]]},
 	{"dt": "Property Setter", "filters": [["module", "=", "BP"]]},
 	{"dt": "Client Script", "filters": [["module", "=", "BP"]]},
+	{"dt": "Server Script", "filters": [["module", "=", "BP"]]},
 	{"dt": "Workflow", "filters": [["name", "=", "Payment Entry Approval"]]},
 ]
 
