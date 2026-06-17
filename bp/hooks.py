@@ -274,5 +274,33 @@ fixtures = [
 	{"dt": "Client Script", "filters": [["module", "=", "BP"]]},
 	{"dt": "Server Script", "filters": [["module", "=", "BP"]]},
 	{"dt": "Workflow", "filters": [["name", "=", "Payment Entry Approval"]]},
+	{
+		"dt": "Custom DocPerm",
+		"filters": [
+			[
+				"parent",
+				"in",
+				[
+					"Material Request",
+					"Request for Quotation",
+					"Supplier Quotation",
+					"Quotation",
+					"POS Profile",
+					"POS Invoice",
+					"POS Opening Entry",
+					"POS Closing Entry",
+					"POS Invoice Merge Log",
+					"POS Settings",
+					"Loyalty Point Entry",
+					"Pricing Rule",
+					"Promotional Scheme",
+					"Coupon Code",
+					"Sales Partner",
+					"Monthly Distribution",
+					"Pick List",
+				],
+			]
+		],
+	},
 ]
 
