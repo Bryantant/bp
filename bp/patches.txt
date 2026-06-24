@@ -6,3 +6,4 @@ bp.patches.v1_0.disable_legacy_print_log
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 bp.patches.v1_0.seed_bp_settings_reset_roles
+bp.patches.v1_0.seed_bp_naming_counters

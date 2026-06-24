@@ -159,6 +159,12 @@ doc_events = {
 	"Payment Entry": {
 		"validate": "bp.overrides.payment_entry.validate",
 	},
+	"Customer": {
+		"autoname": "bp.overrides.naming.autoname",
+	},
+	"Supplier": {
+		"autoname": "bp.overrides.naming.autoname",
+	},
 }
 
 # Print Events
