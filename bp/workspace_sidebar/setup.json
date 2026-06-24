@@ -1,6 +1,6 @@
 {
  "app": "bp",
- "creation": "2026-06-17 00:00:00.000000",
+ "creation": "2026-06-17 00:00:00",
  "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "header_icon": "tool",
@@ -154,8 +154,8 @@
    "icon": "delivery-note",
    "indent": 0,
    "keep_closed": 0,
-   "label": "Purchase Receipt",
-   "link_to": "Purchase Receipt",
+   "label": "Purchase Invoice",
+   "link_to": "Purchase Invoice",
    "link_type": "DocType",
    "show_arrow": 0,
    "type": "Link"
@@ -173,8 +173,8 @@
    "type": "Link"
   }
  ],
- "modified": "2026-06-17 00:00:00.000000",
- "modified_by": "Administrator",
+ "modified": "2026-06-17 20:01:37.560564",
+ "modified_by": "mulyadi@bestindo.com",
  "module": "BP",
  "name": "Setup",
  "owner": "Administrator",
