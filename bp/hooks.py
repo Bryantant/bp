@@ -274,39 +274,4 @@ on_print_pdf = "bp.overrides.sales_invoice.on_print_pdf"
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
-fixtures = [
-	{"dt": "Custom Field", "filters": [["module", "=", "BP"]]},
-	{"dt": "Property Setter", "filters": [["module", "=", "BP"]]},
-	{"dt": "Client Script", "filters": [["module", "=", "BP"]]},
-	{"dt": "Server Script", "filters": [["module", "=", "BP"]]},
-	{"dt": "Workflow", "filters": [["name", "=", "Payment Entry Approval"]]},
-	{
-		"dt": "Custom DocPerm",
-		"filters": [
-			[
-				"parent",
-				"in",
-				[
-					"Material Request",
-					"Request for Quotation",
-					"Supplier Quotation",
-					"Quotation",
-					"POS Profile",
-					"POS Invoice",
-					"POS Opening Entry",
-					"POS Closing Entry",
-					"POS Invoice Merge Log",
-					"POS Settings",
-					"Loyalty Point Entry",
-					"Pricing Rule",
-					"Promotional Scheme",
-					"Coupon Code",
-					"Sales Partner",
-					"Monthly Distribution",
-					"Pick List",
-				],
-			]
-		],
-	},
-]
 
