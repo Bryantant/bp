@@ -1,0 +1,119 @@
+{
+ "actions": [],
+ "autoname": "format:INDI-{YYYY}-{#####}",
+ "creation": "2026-07-09 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_items",
+  "column_break_defaults",
+  "default_warehouse",
+  "column_break_ovjo",
+  "default_salesman",
+  "section_break_ifhm",
+  "upload_excel_button",
+  "rows",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "default_warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "column_break_defaults",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "default_salesman",
+   "fieldtype": "Link",
+   "label": "Salesman",
+   "options": "Sales Person"
+  },
+  {
+   "fieldname": "upload_excel_button",
+   "fieldtype": "Button",
+   "label": "Upload Excel"
+  },
+  {
+   "description": "Upload an ND invoice export (Excel) to populate rows, or add them manually. Set Salesman and Warehouse on each row before submitting.",
+   "fieldname": "rows",
+   "fieldtype": "Table",
+   "options": "Import ND Invoice Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Import ND Invoice",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_ifhm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ovjo",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-09 14:43:18.158563",
+ "modified_by": "Administrator",
+ "module": "BP",
+ "name": "Import ND Invoice",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

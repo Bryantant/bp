@@ -7,5 +7,9 @@ bp.patches.v1_0.disable_legacy_print_log
 # Patches added in this section will be executed after doctypes are migrated
 bp.patches.v1_0.seed_bp_settings_reset_roles
 bp.patches.v1_0.seed_bp_naming_counters
+bp.patches.v1_0.backfill_untracked_customer_fields
 bp.patches.v1_0.add_customer_location_fields
 bp.patches.v1_0.update_customer_location_link_support
+bp.patches.v1_0.add_customer_invoice_limit_field
+bp.patches.v1_0.capture_untracked_customer_sales_invoice_fields
+bp.patches.v1_0.add_sales_invoice_nd_invoice_field

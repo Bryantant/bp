@@ -1,0 +1,119 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-07-09 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "nd_invoice_no",
+  "cust_code_nd",
+  "cust_code",
+  "customer_name",
+  "invoice_date",
+  "amount",
+  "salesman",
+  "warehouse",
+  "resolved_customer",
+  "sales_invoice"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "description": "\"Invoice Number\" from the ND System's invoice export.",
+   "fieldname": "nd_invoice_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ND Invoice No",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "\"CustomerID\" from the ND System's invoice export. Matched against Customer.custom_nd_code.",
+   "fieldname": "cust_code_nd",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Cust Code ND",
+   "reqd": 1
+  },
+  {
+   "description": "Not an Excel column -- the resolved Customer's own ID, auto-filled on save.",
+   "fieldname": "cust_code",
+   "fieldtype": "Data",
+   "label": "Cust Code",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Not an Excel column -- the resolved Customer's name, auto-filled on save.",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "description": "Fill in before submitting.",
+   "fieldname": "salesman",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Salesman",
+   "options": "Sales Person"
+  },
+  {
+   "columns": 2,
+   "description": "Fill in before submitting.",
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "description": "Resolved from Cust Code ND on save. Blank means no matching Customer was found.",
+   "fieldname": "resolved_customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Resolved Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-09 00:00:00",
+ "modified_by": "Administrator",
+ "module": "BP",
+ "name": "Import ND Invoice Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

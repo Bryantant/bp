@@ -30,6 +30,10 @@ web_include_css = ["/assets/bp/css/custom.css"]
 app_include_js = ["desk_overrides.bundle.js"]
 extend_bootinfo = "bp.boot.boot_session"
 
+# Fixtures
+# --------
+fixtures = ["Client Script"]
+
 # include js, css files in header of web template
 # web_include_css = "/assets/bp/css/bp.css"
 # web_include_js = "/assets/bp/js/bp.js"
@@ -154,6 +158,7 @@ doctype_js = {
 doc_events = {
 	"Sales Invoice": {
 		"validate": "bp.overrides.sales_invoice.validate",
+		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",
 		"before_print": "bp.overrides.sales_invoice.before_print",
 	},
 	"Payment Entry": {

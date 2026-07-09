@@ -15,6 +15,48 @@ def validate(doc, method=None):
 
 
 # ---------------------------------------------------------------------------
+# Active invoice limit
+#
+# A Customer may cap how many of their submitted invoices can stay unpaid at
+# once (Customer.custom_max_active_invoices; blank/0 = no limit). An invoice
+# counts as "active" purely by outstanding_amount > 0 -- delivery status is
+# not considered. Enforced only at submit (drafts are unrestricted), with no
+# bypass: the only way past it is to pay off an existing open invoice.
+# ---------------------------------------------------------------------------
+
+
+def check_active_invoice_limit(doc, method=None):
+	if doc.is_return:
+		return
+
+	limit = frappe.db.get_value("Customer", doc.customer, "custom_max_active_invoices")
+	if not limit:
+		return
+
+	open_invoices = frappe.get_all(
+		"Sales Invoice",
+		filters={
+			"customer": doc.customer,
+			"docstatus": 1,
+			"is_return": 0,
+			"outstanding_amount": [">", 0],
+			"name": ["!=", doc.name],
+		},
+		pluck="name",
+		order_by="posting_date asc",
+	)
+
+	if len(open_invoices) >= limit:
+		frappe.throw(
+			_(
+				"{0} has reached the maximum of {1} active (unpaid) invoice(s): {2}. "
+				"Collect payment on one of these before submitting a new invoice."
+			).format(doc.customer_name or doc.customer, limit, ", ".join(open_invoices)),
+			title=_("Active Invoice Limit Reached"),
+		)
+
+
+# ---------------------------------------------------------------------------
 # Print-once control + audit trail
 #
 # A submitted Sales Invoice may be printed once. Reprints are blocked until an

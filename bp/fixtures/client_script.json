@@ -1,0 +1,57 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Supplier",
+  "enabled": 1,
+  "modified": "2026-06-16 23:54:55.761822",
+  "module": "BP",
+  "name": "Supplier Naming",
+  "script": "frappe.ui.form.on('Supplier', {\n    supplier_name: function(frm) {\n        if (frm.doc.supplier_name) {\n            // Get first character and convert to uppercase\n            let initial = frm.doc.supplier_name.charAt(0).toUpperCase();\n\n            // Set value to custom field\n            frm.set_value('custom_initial', initial);\n        } else {\n            // Clear if empty\n            frm.set_value('custom_initial', '');\n        }\n    }\n});",
+  "view": "Form"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Customer",
+  "enabled": 1,
+  "modified": "2026-06-16 23:54:55.761026",
+  "module": "BP",
+  "name": "Customer Naming",
+  "script": "frappe.ui.form.on('Customer', {\n    customer_name: function(frm) {\n        if (frm.doc.customer_name) {\n            // Get first character and convert to uppercase\n            let initial = frm.doc.customer_name.charAt(0).toUpperCase();\n\n            // Set value to custom field\n            frm.set_value('custom_cn_initial', initial);\n        } else {\n            // Clear if empty\n            frm.set_value('custom_cn_initial', '');\n        }\n    }\n});",
+  "view": "Form"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Item",
+  "enabled": 0,
+  "modified": "2026-06-24 18:54:36.489664",
+  "module": "BP",
+  "name": "Item",
+  "script": "frappe.ui.form.on('Item', {\n    validate: function(frm) {\n        let value = frm.doc.item_code || \"\";\n\n        if (value.length !== 10) {\n            frappe.throw(\"Item Code must be exactly 10 characters\");\n        }\n    }\n});",
+  "view": "Form"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "User",
+  "enabled": 0,
+  "modified": "2026-06-16 23:54:55.724326",
+  "module": "BP",
+  "name": "User UI Simplification",
+  "script": "frappe.ui.form.on('User', {\n    refresh: function(frm) {\n        setTimeout(function() {\n            hide_roles();\n            filter_modules();\n            hide_bulk_buttons();\n        }, 700);\n    }\n});\n\nfunction hide_roles() {\n    const blacklist = ['System Manager', 'Script Manager'];\n\n    blacklist.forEach(function(role) {\n        $(`[data-fieldname=\"roles_html\"] input[data-unit=\"${role}\"]`)\n            .closest('div.unit-checkbox')\n            .hide();\n    });\n}\n\nfunction filter_modules() {\n    const whitelist = [\n        'Accounts',\n        'Buying',\n        'Selling',\n        'Stock',\n        'Core'\n    ];\n\n    $('[data-fieldname=\"modules_html\"] div.unit-checkbox').each(function() {\n        const unit = $(this).find('input').data('unit');\n        if (!whitelist.includes(unit)) {\n            $(this).hide();\n        }\n    });\n}\n\nfunction hide_bulk_buttons() {\n    $('div.bulk-select-options').hide();\n}",
+  "view": "Form"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Client Script",
+  "dt": "Sales Invoice",
+  "enabled": 1,
+  "modified": "2026-06-12 09:28:43.287380",
+  "module": "BP",
+  "name": "Sales Invoice - Below Cost Warning",
+  "script": "// Immediate alert when user manually changes rate on an item row\nfrappe.ui.form.on('Sales Invoice Item', {\n\trate(frm, cdt, cdn) {\n\t\tconst row = locals[cdt][cdn];\n\t\tif (!row.item_code || !row.warehouse || row.is_free_item) return;\n\n\t\tfrappe.call({\n\t\t\tmethod: 'frappe.client.get_value',\n\t\t\targs: {\n\t\t\t\tdoctype: 'Bin',\n\t\t\t\tfilters: { item_code: row.item_code, warehouse: row.warehouse },\n\t\t\t\tfieldname: 'valuation_rate'\n\t\t\t},\n\t\t\tcallback(r) {\n\t\t\t\tif (!r.message) return;\n\t\t\t\tconst val_rate = flt(r.message.valuation_rate);\n\t\t\t\tif (val_rate > 0 && flt(row.rate) < val_rate) {\n\t\t\t\t\tfrappe.show_alert({\n\t\t\t\t\t\tmessage: __('Row {0} ({1}): Rate {2} is below valuation rate {3}', [\n\t\t\t\t\t\t\trow.idx,\n\t\t\t\t\t\t\trow.item_name,\n\t\t\t\t\t\t\tformat_currency(row.rate, frm.doc.currency),\n\t\t\t\t\t\t\tformat_currency(val_rate, frm.doc.currency)\n\t\t\t\t\t\t]),\n\t\t\t\t\t\tindicator: 'orange'\n\t\t\t\t\t}, 8);\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\t}\n});\n\n// Below-cost check on submit: compare against live Bin valuation_rate\n// (not saved incoming_rate) and show a modal, matching Frappe's native\n// validation dialogs. First submit click is blocked so the popup stands\n// out; user must close it and click Submit again to confirm and proceed.\nfrappe.ui.form.on('Sales Invoice', {\n\tbefore_submit(frm) {\n\t\tconst rows = (frm.doc.items || []).filter(\n\t\t\trow => !row.is_free_item && row.item_code && row.warehouse\n\t\t);\n\t\tif (!rows.length) return;\n\n\t\treturn Promise.all(\n\t\t\trows.map(row =>\n\t\t\t\tfrappe.call({\n\t\t\t\t\tmethod: 'frappe.client.get_value',\n\t\t\t\t\targs: {\n\t\t\t\t\t\tdoctype: 'Bin',\n\t\t\t\t\t\tfilters: { item_code: row.item_code, warehouse: row.warehouse },\n\t\t\t\t\t\tfieldname: 'valuation_rate'\n\t\t\t\t\t}\n\t\t\t\t}).then(r => ({ row, val_rate: flt(r.message && r.message.valuation_rate) }))\n\t\t\t)\n\t\t).then(results => {\n\t\t\tconst below = results.filter(({ row, val_rate }) => val_rate > 0 && flt(row.rate) < val_rate);\n\n\t\t\tif (!below.length) {\n\t\t\t\tfrm.__below_cost_ack = null;\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\t// Signature of the current below-cost state -- if the user already saw\n\t\t\t// this exact popup and clicked Submit again, let it through. If rates\n\t\t\t// changed since, treat it as a new warning and block again.\n\t\t\tconst signature = below\n\t\t\t\t.map(({ row, val_rate }) => `${row.item_code}|${row.warehouse}|${row.rate}|${val_rate}`)\n\t\t\t\t.sort()\n\t\t\t\t.join(';');\n\n\t\t\tif (frm.__below_cost_ack === signature) {\n\t\t\t\treturn;\n\t\t\t}\n\n\t\t\tfrm.__below_cost_ack = signature;\n\t\t\tfrappe.validated = false;\n\n\t\t\tconst warnings = below.map(({ row, val_rate }) =>\n\t\t\t\t`<b>Row ${row.idx} — ${row.item_name}</b><br>` +\n\t\t\t\t`Selling rate: ${format_currency(row.rate, frm.doc.currency)} | ` +\n\t\t\t\t`Valuation rate: ${format_currency(val_rate, frm.doc.currency)}`\n\t\t\t);\n\n\t\t\tfrappe.msgprint({\n\t\t\t\ttitle: __('Selling Below Cost'),\n\t\t\t\tmessage:\n\t\t\t\t\t__('The following items are priced below their valuation rate. Click Submit again to confirm.') +\n\t\t\t\t\t'<br><br>' +\n\t\t\t\t\twarnings.join('<br><br>'),\n\t\t\t\tindicator: 'orange'\n\t\t\t});\n\t\t});\n\t}\n});",
+  "view": "Form"
+ }
+]
