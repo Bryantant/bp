@@ -26,9 +26,19 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 app_include_css = ["/assets/bp/css/custom.css"]
-web_include_css = ["/assets/bp/css/custom.css"]
+# The storefront assets are website-only on purpose -- custom.css is shared with
+# the desk (app_include_css above), so app-shell rules must not go in it.
+# They are *.bundle.* so esbuild emits content-hashed filenames: assets are
+# served with max-age=43200, and a plain path would leave returning visitors on
+# a 12-hour-stale copy after every deploy. Run `bench build --app bp` on change.
+web_include_css = ["/assets/bp/css/custom.css", "storefront.bundle.css"]
 app_include_js = ["desk_overrides.bundle.js"]
+web_include_js = ["storefront.bundle.js"]
 extend_bootinfo = "bp.boot.boot_session"
+
+# Injects the mobile app shell (fixed header + bottom tab bar) into body_include
+# on every website page. See bp/storefront/app_shell.py.
+update_website_context = ["bp.storefront.app_shell.update_website_context"]
 
 # Fixtures
 # --------

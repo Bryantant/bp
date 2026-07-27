@@ -1,0 +1,480 @@
+/* ============================================================================
+   Mobile app-shell for the storefront (fixed header + bottom tab bar).
+
+   Markup comes from bp/templates/includes/app_shell.html, injected into
+   body_include by bp/storefront/app_shell.py.
+
+   This file is loaded ONLY via `web_include_css` in hooks.py -- never
+   `app_include_css`. Do not merge it into custom.css, which is shared with the
+   desk; storefront rules there would bleed into the ERPNext desk UI.
+
+   Desktop safety: `.bp-appshell` is `display: none` by default and is switched
+   on only inside the max-width query below. If this stylesheet fails to load or
+   the query never matches, the site renders exactly as it did before.
+   ========================================================================== */
+
+/* Bestindo brand tokens -- see docs/brand-design-system.md */
+:root {
+	--bp-primary: #2c6498;
+	--bp-muted: #656565;
+	--bp-light: #f4f8f1;
+	--bp-head-h: 56px;
+	--bp-tabbar-h: 56px;
+	/* No `viewport-fit=cover` in frappe's viewport meta, so this resolves to 0
+	   today. Kept as future-proofing; the max() keeps a sane floor either way. */
+	--bp-safe-b: max(0px, env(safe-area-inset-bottom));
+}
+
+/* Frappe's Hero web template renders its primary CTA as .btn-dark, which picks
+   up the theme's $dark -- our brand's #1C2900 "reserved dark tone", a near-black
+   olive the brand doc explicitly does not use for actions. Repoint hero CTAs at
+   the brand blue the doc names as the CTA colour. Applies at all widths. */
+.hero-buttons .btn-dark {
+	background-color: var(--bp-primary);
+	border-color: var(--bp-primary);
+}
+
+.hero-buttons .btn-dark:hover,
+.hero-buttons .btn-dark:focus {
+	background-color: #234f79;
+	border-color: #234f79;
+}
+
+/* Default: no shell. Desktop and any no-CSS fallback land here. */
+.bp-appshell {
+	display: none;
+}
+
+@media (max-width: 767.98px) {
+	.bp-appshell {
+		display: block;
+	}
+
+	/* Replace the desktop navbar with our header. The BP Navbar Web Template
+	   carries its own inline <style> in <body>, which would otherwise out-order
+	   this external sheet -- hence !important. */
+	.bp-navbar {
+		display: none !important;
+	}
+
+	/* Both bars are position:fixed and therefore out of flow, so this padding
+	   does not disturb `body { display:flex; flex-direction:column }` or the
+	   `.web-footer { margin-top:auto }` push-down from frappe's website scss. */
+	body {
+		padding-top: var(--bp-head-h);
+		padding-bottom: calc(var(--bp-tabbar-h) + var(--bp-safe-b));
+	}
+
+	/* ---- Fixed header ---------------------------------------------------- */
+	.bp-mhead {
+		position: fixed;
+		top: 0;
+		right: 0;
+		left: 0;
+		z-index: 1030; /* Bootstrap $zindex-fixed: above content, below modals */
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		height: var(--bp-head-h);
+		padding: 0 12px;
+		background: var(--bp-primary);
+	}
+
+	.bp-mhead__brand {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+	}
+
+	.bp-mhead__brand img {
+		height: 26px;
+		width: auto;
+	}
+
+	/* Home-only greeting. Empty until storefront.js fills it, so it must not
+	   reserve space or the header jitters on load. */
+	.bp-greet {
+		flex: 0 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		color: #fff;
+		font-size: 16px;
+		font-weight: 600;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.bp-mhead__spacer {
+		flex: 1 1 auto;
+	}
+
+	.bp-mhead__icon {
+		position: relative;
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		color: #fff;
+	}
+
+	.bp-mhead__icon:hover,
+	.bp-mhead__icon:focus {
+		color: #fff;
+	}
+
+	.bp-mhead__icon svg {
+		width: 22px;
+		height: 22px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	/* ---- "titled" variant: back arrow + page name ------------------------ */
+	.bp-mhead__back {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		margin-left: -8px;
+		color: #fff;
+	}
+
+	.bp-mhead__back:hover,
+	.bp-mhead__back:focus {
+		color: #fff;
+	}
+
+	.bp-mhead__back svg {
+		width: 24px;
+		height: 24px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.bp-mhead__title {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		padding-right: 40px; /* balances the back arrow so the title reads centred */
+		color: #fff;
+		font-size: 17px;
+		font-weight: 600;
+		text-align: center;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	/* ---- Bottom tab bar -------------------------------------------------- */
+	.bp-tabbar {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 1030;
+		display: flex;
+		background: #fff;
+		border-top: 1px solid rgba(0, 0, 0, 0.08);
+		padding-bottom: var(--bp-safe-b);
+	}
+
+	.bp-tab {
+		position: relative;
+		flex: 1 1 0;
+		min-width: 0;
+		min-height: 48px; /* WCAG 2.5.5 touch target */
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 3px;
+		padding: 7px 2px;
+		color: var(--bp-muted);
+		font-size: 11px;
+		line-height: 1.1;
+		text-align: center;
+		text-decoration: none;
+	}
+
+	.bp-tab:hover,
+	.bp-tab:focus {
+		color: var(--bp-muted);
+		text-decoration: none;
+	}
+
+	.bp-tab__ico {
+		position: relative;
+		display: block;
+	}
+
+	.bp-tab svg {
+		display: block;
+		width: 22px;
+		height: 22px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.bp-tab__label {
+		display: block;
+		max-width: 100%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Active tab. Driven by our own data-active attribute, resolved server-side
+	   from the *requested* path -- body[data-path] is useless here because the
+	   router rewrites "/" to the configured home page's route. */
+	.bp-appshell[data-active="home"] .bp-tab[data-tab="home"],
+	.bp-appshell[data-active="product"] .bp-tab[data-tab="product"],
+	.bp-appshell[data-active="cart"] .bp-tab[data-tab="cart"],
+	.bp-appshell[data-active="transaction"] .bp-tab[data-tab="transaction"],
+	.bp-appshell[data-active="profile"] .bp-tab[data-tab="profile"] {
+		color: var(--bp-primary);
+		font-weight: 600;
+	}
+
+	.bp-appshell[data-active="home"] .bp-tab[data-tab="home"]::before,
+	.bp-appshell[data-active="product"] .bp-tab[data-tab="product"]::before,
+	.bp-appshell[data-active="cart"] .bp-tab[data-tab="cart"]::before,
+	.bp-appshell[data-active="transaction"] .bp-tab[data-tab="transaction"]::before,
+	.bp-appshell[data-active="profile"] .bp-tab[data-tab="profile"]::before {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 22%;
+		width: 56%;
+		height: 3px;
+		border-radius: 0 0 3px 3px;
+		background: var(--bp-primary);
+	}
+
+	/* ---- Count badges ---------------------------------------------------- */
+	/* Filled in client-side from the cart_count / wish_count cookies. Toggled
+	   with [hidden] -- never removed from the DOM. */
+	.bp-badge {
+		position: absolute;
+		top: -5px;
+		left: 12px;
+		min-width: 17px;
+		height: 17px;
+		padding: 0 4px;
+		border-radius: 999px;
+		background: #dc3545;
+		color: #fff;
+		font-size: 10px;
+		font-weight: 600;
+		line-height: 17px;
+		text-align: center;
+	}
+
+	.bp-mhead__icon .bp-badge {
+		top: 3px;
+		left: 21px;
+	}
+
+	.bp-badge[hidden] {
+		display: none;
+	}
+
+	/* ---- Clearance for webshop's own bottom-of-page controls -------------- */
+	.cart-payment-addresses,
+	.page-footer {
+		margin-bottom: var(--bp-tabbar-h);
+	}
+
+	/* ---- Featured Products (Item Card Group) -- 2 columns on mobile ------
+	   Bootstrap's .col-sm-3/.col-sm-6 on .item-card only kick in at >=576px,
+	   so below that each card falls back to block-level (100% width, one per
+	   row). .row is display:flex here (bootstrap 4), so overriding width on
+	   the flex item is enough -- no grid rewrite needed. Scoped to
+	   .item-card-group-section so this doesn't touch the /all-products list
+	   view, which uses an unrelated (and separately known-broken) layout. */
+	.item-card-group-section .row {
+		margin-right: -6px;
+		margin-left: -6px;
+	}
+
+	.item-card-group-section .item-card {
+		flex: 0 0 50%;
+		max-width: 50%;
+		/* webshop-web.bundle.css sets the same selector's min-width: 300px, and
+		   loads after us (webshop comes after bp in app install order) -- at
+		   equal specificity the later sheet wins, so this needs !important. */
+		min-width: 0 !important;
+		padding: 6px !important;
+		margin-bottom: 12px;
+	}
+
+	.item-card-group-section .item-card .card {
+		height: auto !important;
+		min-height: 230px;
+	}
+
+	.item-card-group-section .item-card .card-img,
+	.item-card-group-section .item-card .card-img-top.no-image {
+		width: 100%;
+		height: 120px;
+		object-fit: cover;
+	}
+
+	/* The image/placeholder is wrapped in a bare <a> with no width of its own.
+	   .card has align-items-center (cross axis, since it's a flex column), so
+	   without this the <a> shrinks to its text content ("LT" etc.) instead of
+	   stretching -- and width:100% above then resolves against that shrunken
+	   width, not the card. */
+	.item-card-group-section .item-card .card > a {
+		align-self: stretch;
+		width: 100%;
+	}
+
+	.item-card-group-section .item-card .product-title {
+		font-size: 13px;
+		line-height: 1.3;
+	}
+
+	.item-card-group-section .item-card .product-category {
+		font-size: 11px;
+	}
+
+	/* ---- Product list view (product_ui/list.js) --------------------------
+	   webshop hardcodes this row with raw .col-2/.col-8/.col-4 -- no
+	   responsive prefix, so those percentages apply at every width. At phone
+	   widths that leaves ~58px for the thumbnail and crams the title next to
+	   a button whose own inline style forces min-width:135px; float:right,
+	   which overflows its column and overlaps the title instead of wrapping.
+
+	   Tried putting the action button beside product-price (a later sibling
+	   outside the title wrapper it's nested in) via `display: contents`
+	   (this engine doesn't honour it, verified live) and via absolute
+	   positioning pinned to the bottom-right of .col-10 with no reserved
+	   space (product-price's box is full-width in normal flow, so the
+	   button landed layered on top of the price text). Both fought the DOM
+	   structure instead of working with it.
+
+	   Settled approach: reserve a dedicated strip at the very bottom of
+	   .col-10 with `padding-bottom` sized to the button, then absolutely
+	   position the action container across that reserved strip (left:0;
+	   right:0; bottom:0) and right-align its contents with
+	   justify-content. Reserving the space up front is what avoids the
+	   overlap -- price is no longer the last thing in normal flow, the
+	   padding is, so nothing else can occupy that strip.
+
+	   `!important` throughout because JS inlines float/width/margin on the
+	   very elements we need to override, which otherwise beats an external
+	   stylesheet regardless of selector specificity. */
+	.list-row {
+		align-items: flex-start;
+	}
+
+	.list-row.list-row .list-image {
+		flex: 0 0 84px;
+		max-width: 84px;
+		width: 84px;
+		height: 84px;
+		padding: 4px;
+	}
+
+	.list-row .list-image .website-image,
+	.list-row .list-image .card-img-top {
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.list-row.list-row .col-10 {
+		position: relative;
+		padding-bottom: 52px; /* reserved strip for the action container */
+		flex: 0 0 calc(100% - 84px);
+		max-width: calc(100% - 84px);
+	}
+
+	.list-row .col-10 > div[style*="display: flex"] {
+		flex-direction: column !important;
+		align-items: stretch !important;
+		margin-left: 0 !important;
+	}
+
+	.list-row .col-10 > div[style*="display: flex"] > .col-8 {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+		margin-right: 0 !important;
+		padding-left: 0;
+	}
+
+	.list-row .col-10 > div[style*="display: flex"] > .col-8 a {
+		display: -webkit-box;
+		overflow: hidden;
+		font-size: 14px;
+		line-height: 1.3;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+	}
+
+	.list-row .product-code {
+		margin-top: 6px;
+		font-size: 12px;
+	}
+
+	.list-row .col-10 > div[style*="display: flex"] > .cart-action-container {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		/* left+right (not width) define the span, so this stays auto --
+		   Bootstrap's .col-4 sets width:100% separately from flex-basis,
+		   which would otherwise conflict with the left/right span. */
+		width: auto !important;
+		flex: 0 0 auto !important;
+		max-width: none !important;
+		display: flex !important;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+		align-items: center;
+		gap: 8px;
+	}
+
+	/* Bigger, easier-to-tap buttons (was max-height:30px). */
+	.list-row .cart-action-container .btn-add-to-cart-list,
+	.list-row .cart-action-container .go-to-cart {
+		float: none !important;
+		min-width: 0 !important;
+		max-height: none !important;
+		margin-left: 0 !important;
+		padding: 10px 14px !important;
+		font-size: 13px;
+		white-space: nowrap;
+	}
+
+	.list-row .cart-indicator.list-indicator {
+		min-width: 36px;
+		min-height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 14px;
+	}
+}
+
+@media print {
+	.bp-appshell {
+		display: none !important;
+	}
+
+	body {
+		padding-top: 0 !important;
+		padding-bottom: 0 !important;
+	}
+}

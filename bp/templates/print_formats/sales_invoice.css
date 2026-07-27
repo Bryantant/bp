@@ -1,0 +1,178 @@
+/* CSS for the "Sales Invoice" print format. Paired with sales_invoice.html --
+   installed into the Print Format's own `css` field by
+   bp/patches/v1_0/create_do_invoice_print_formats.py (not inlined via <style>
+   in the HTML). Kept as its own file, no shared include with
+   delivery_order.css, matching the html files' independence. */
+
+.bp-legacy-format, .bp-legacy-format * {
+	color: #000 !important;
+}
+.bp-legacy-format {
+	/* !important throughout this stylesheet: Frappe always concatenates
+	   standard.css + the site's default Print Style (Print Settings >
+	   Print Style) + this format's own CSS for every print format, with
+	   no per-format opt-out. The built-in styles fight generic
+	   tags/selectors we also use (th, td) -- e.g. "Modern" sets
+	   ".print-format th { background-color: #eee !important;
+	   border-bottom: 0 !important }", which would silently strip our
+	   header borders if that style were ever selected site-wide.
+	   Matching (or exceeding) their specificity with !important makes
+	   this format's look independent of whatever Print Style is active. */
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 12px !important;
+}
+.bp-legacy-format table {
+	border-collapse: collapse;
+	width: 100%;
+}
+
+.bp-panel {
+	padding: 6px 10px !important;
+}
+
+.bp-header-row {
+	display: flex;
+	gap: 10px;
+	align-items: stretch;
+}
+.bp-header-col {
+	flex: 1 1 50%;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.bp-panel-docinfo {
+	flex: 1 1 50%;
+}
+.bp-panel-company {
+	border-right: 1px solid #000 !important;
+	border-bottom: 1px solid #000 !important;
+}
+.bp-legacy-format .bp-company-name {
+	font-size: 20px;
+	font-weight: bold;
+	text-transform: uppercase;
+	margin: 0 0 2px;
+}
+.bp-legacy-format .bp-doc-heading {
+	font-size: 18px;
+	font-weight: bold;
+	text-decoration: underline;
+	text-align: right;
+	margin: 0 0 4px;
+}
+.bp-legacy-format .bp-info-table td {
+	padding: 1px 0 !important;
+	white-space: nowrap;
+}
+.bp-legacy-format .bp-info-table td.bp-info-label {
+	padding-right: 6px !important;
+}
+
+.bp-legacy-format .bp-customer-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: stretch;
+}
+.bp-legacy-format .bp-customer-text {
+	flex: 1 1 auto;
+	padding-right: 10px;
+}
+.bp-legacy-format .bp-warehouse-code {
+	flex: none;
+	padding-left: 14px;
+	margin-left: 14px;
+	font-size: 22px;
+	font-weight: bold;
+	text-align: center;
+	min-width: 70px;
+}
+.bp-legacy-format .bp-warehouse-code .bp-page-no {
+	font-size: 12px;
+	font-weight: normal;
+	margin-top: 4px;
+}
+
+.bp-legacy-format .items-table {
+	font-size: 11px;
+	margin-top: 4px;
+	font-variant-numeric: tabular-nums;
+	table-layout: fixed;
+}
+.bp-legacy-format .items-table .col-no       { width: 5%; }
+.bp-legacy-format .items-table .col-desc     { width: 30%; }
+.bp-legacy-format .items-table .col-qty-val  { width: 6%; }
+.bp-legacy-format .items-table .col-qty-uom  { width: 4%; }
+.bp-legacy-format .items-table .col-price    { width: 14%; }
+.bp-legacy-format .items-table .col-disc-pct { width: 9%; }
+.bp-legacy-format .items-table .col-disc-amt { width: 13%; }
+.bp-legacy-format .items-table .col-net      { width: 19%; }
+.bp-legacy-format .items-table td.col-no {
+	text-align: center;
+}
+.bp-legacy-format .items-table th {
+	border: 1px solid #000 !important;
+	background: #fff !important;
+	padding: 3px 5px !important;
+	font-weight: bold !important;
+	text-align: center;
+}
+.bp-legacy-format .items-table td {
+	border: none !important;
+	padding: 3px 5px !important;
+	vertical-align: top;
+}
+.bp-legacy-format .items-table tbody tr:last-child td {
+	border-bottom: 1px solid #000 !important;
+}
+.bp-legacy-format .items-table .bp-num {
+	text-align: right;
+}
+.bp-legacy-format .bp-item-note {
+	display: block;
+	font-size: 11px;
+}
+
+.bp-legacy-format .bp-footer-panel {
+	margin-top: 6px;
+	display: flex;
+	justify-content: space-between;
+}
+.bp-legacy-format .bp-note {
+	flex: 0 0 50%;
+	width: 50%;
+}
+.bp-legacy-format .bp-totals-box {
+	flex: 0 0 50%;
+	width: 50%;
+	border-bottom: 1px solid #000 !important;
+}
+.bp-legacy-format .bp-totals-box td {
+	padding: 0 0 0 12px !important;
+	white-space: nowrap;
+}
+.bp-legacy-format .bp-totals-box .bp-num {
+	text-align: right;
+}
+.bp-legacy-format .bp-totals-box .bp-grand-total td {
+	font-weight: bold;
+}
+
+.bp-legacy-format .bp-signature-panel {
+	margin-top: 10px;
+	display: flex;
+	justify-content: space-between;
+	text-align: center;
+}
+.bp-legacy-format .bp-signature-col {
+	width: 32%;
+}
+.bp-legacy-format .bp-signature-line {
+	margin-top: 40px;
+}
+.bp-legacy-format .bp-print-stamp {
+	text-align: right;
+	color: #b45f06 !important;
+	font-size: 10px;
+	margin-top: 4px;
+}

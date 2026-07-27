@@ -28,6 +28,9 @@ frappe.router.on("change", function () {
 		var route = frappe.get_route();
 		// Skip workspace — its left nav should stay open
 		if (!route || !route[0] || route[0] === "Workspaces") return;
+		// Skip print preview — its sidebar holds the Print Format/Letterhead/Language
+		// selectors, not just navigation, so hiding it removes the format switcher
+		if (route[0] === "print") return;
 
 		var $sidebar = $(".layout-side-section");
 		if ($sidebar.is(":visible")) {

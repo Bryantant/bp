@@ -13,3 +13,6 @@ bp.patches.v1_0.update_customer_location_link_support
 bp.patches.v1_0.add_customer_invoice_limit_field
 bp.patches.v1_0.capture_untracked_customer_sales_invoice_fields
 bp.patches.v1_0.add_sales_invoice_nd_invoice_field
+bp.patches.v1_0.add_sales_invoice_order_by_field
+bp.patches.v1_0.seed_bestindo_company_address
+bp.patches.v1_0.create_do_invoice_print_formats

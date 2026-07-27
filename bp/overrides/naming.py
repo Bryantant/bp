@@ -15,6 +15,14 @@ Wired via ``doc_events`` ``autoname`` in hooks.py. ``set_new_name`` runs
 autoname *then* this hook) before the ``naming_series:`` branch, and that
 branch only runs when ``doc.name`` is still empty -- so setting ``doc.name``
 here cleanly bypasses ``tabSeries``.
+
+The initial is normally pre-filled client-side (see the "Customer Naming"
+Client Script) from the first character of the title field, so users see it
+before saving. That client script never runs for documents created via the
+REST API, Data Import Tool, or other server-side code, so this module
+mirrors the same first-character derivation as a fallback when the field is
+still blank at save time -- callers no longer need to know about the
+internal initial field to create a Customer/Supplier programmatically.
 """
 
 import re
@@ -25,6 +33,9 @@ from frappe.utils import cint
 
 # Field on each doctype holding the initial letter used as the name prefix.
 INITIAL_FIELD = {"Customer": "custom_cn_initial", "Supplier": "custom_initial"}
+# Field the initial is derived from when not already set (matches each
+# doctype's title_field).
+SOURCE_FIELD = {"Customer": "customer_name", "Supplier": "supplier_name"}
 PAD = 4  # matches the existing #### format
 
 
@@ -33,6 +44,11 @@ def autoname(doc, method=None):
 	if not field:
 		return
 	initial = (doc.get(field) or "").strip().upper()
+	if not initial:
+		source = (doc.get(SOURCE_FIELD.get(doc.doctype)) or "").strip()
+		initial = source[0].upper() if source else ""
+		if initial:
+			doc.set(field, initial)
 	if not initial:
 		frappe.throw(
 			_("Initial ({0}) is required to generate the {1} code.").format(field, doc.doctype)
