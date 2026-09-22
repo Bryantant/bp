@@ -25,11 +25,11 @@
   "docstatus": 0,
   "doctype": "Client Script",
   "dt": "Item",
-  "enabled": 0,
+  "enabled": 1,
   "modified": "2026-06-24 18:54:36.489664",
   "module": "BP",
   "name": "Item",
-  "script": "frappe.ui.form.on('Item', {\n    validate: function(frm) {\n        let value = frm.doc.item_code || \"\";\n\n        if (value.length !== 10) {\n            frappe.throw(\"Item Code must be exactly 10 characters\");\n        }\n    }\n});",
+  "script": "frappe.ui.form.on('Item', {\n    validate: function(frm) {\n        let value = frm.doc.item_code || \"\";\n\n        if (value.length !== 9) {\n            frappe.throw(\"Item Code must be exactly 9 characters (format legacy: XXX-00000)\");\n        }\n    }\n});",
   "view": "Form"
  },
  {

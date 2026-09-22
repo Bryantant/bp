@@ -16,3 +16,4 @@ bp.patches.v1_0.add_sales_invoice_nd_invoice_field
 bp.patches.v1_0.add_sales_invoice_order_by_field
 bp.patches.v1_0.seed_bestindo_company_address
 bp.patches.v1_0.create_do_invoice_print_formats
+bp.patches.v1_0.set_company_cogs_and_round_off_accounts
