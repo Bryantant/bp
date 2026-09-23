@@ -16,3 +16,4 @@ INVOICE_TYPE_CODES = {"Cash": "C", "Credit": "F"}
 
 def get_invoice_type_code(doc, token=None):
 	return INVOICE_TYPE_CODES.get(doc.get("custom_invoice_type"), "")
+

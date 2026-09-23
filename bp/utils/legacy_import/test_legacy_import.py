@@ -198,9 +198,11 @@ class IntegrationTestLegacyImport(IntegrationTestCase):
 		from bp.overrides.sales_invoice import BPSalesInvoice
 
 		doc = BPSalesInvoice({"doctype": "Sales Invoice"})
+		# The control is switched off on this site while it is being set up, so
+		# pin it on for the test instead of reading BP Settings.
 		with mock_patch(
 			"erpnext.accounts.doctype.sales_invoice.sales_invoice.SalesInvoice.check_credit_limit"
-		) as core_check:
+		) as core_check, mock_patch("bp.overrides.sales_invoice.enforced", return_value=True):
 			frappe.flags.bp_legacy_import = True
 			try:
 				doc.check_credit_limit()
@@ -211,13 +213,19 @@ class IntegrationTestLegacyImport(IntegrationTestCase):
 			doc.check_credit_limit()
 			self.assertEqual(core_check.call_count, 1)
 
+		with mock_patch(
+			"erpnext.accounts.doctype.sales_invoice.sales_invoice.SalesInvoice.check_credit_limit"
+		) as core_check, mock_patch("bp.overrides.sales_invoice.enforced", return_value=False):
+			doc.check_credit_limit()
+			self.assertEqual(core_check.call_count, 0, "BP Settings switch must be able to turn it off")
+
 	# -- active invoice limit bypass -----------------------------------------
 
 	def test_active_invoice_limit_skipped_only_during_legacy_import(self):
 		doc = frappe._dict(is_return=0, customer="C0001", customer_name="C0001", name="new")
 		with patch("bp.overrides.sales_invoice.frappe.get_all", return_value=["A1", "A2"]), patch(
 			"bp.overrides.sales_invoice.frappe.db.get_value", return_value=1
-		):
+		), patch("bp.overrides.sales_invoice.enforced", return_value=True):
 			with self.assertRaises(frappe.ValidationError):
 				check_active_invoice_limit(doc)
 

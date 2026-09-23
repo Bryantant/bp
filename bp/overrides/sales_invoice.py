@@ -21,9 +21,20 @@ from bp.utils.cascading_discount import calculate_cascading_discount
 
 class BPSalesInvoice(SalesInvoice):
 	def check_credit_limit(self):
-		if frappe.flags.get("bp_legacy_import"):
+		if frappe.flags.get("bp_legacy_import") or not enforced("enforce_credit_limit"):
 			return
 		super().check_credit_limit()
+
+
+def enforced(setting):
+	"""Is this invoice control switched on in BP Settings?
+
+	Both controls can be switched off while the site is being set up or
+	trialled -- an empty/unsaved BP Settings must not silently disable them,
+	so a missing value counts as enforced.
+	"""
+	value = frappe.db.get_single_value("BP Settings", setting)
+	return True if value is None else bool(cint(value))
 
 # ---------------------------------------------------------------------------
 # Naming series — Source Warehouse token
@@ -45,6 +56,13 @@ def get_warehouse_name_code(doc, token=None):
 
 
 def validate(doc, method=None):
+	if not doc.bp_sales_person and doc.is_opening == "Yes":
+		# An opening balance carries no salesperson of its own; use the
+		# customer's, and accept none rather than blocking the import.
+		doc.bp_sales_person = frappe.db.get_value("Customer", doc.customer, "bp_sales_person")
+		if not doc.bp_sales_person:
+			return
+
 	if not doc.bp_sales_person:
 		frappe.throw("Sales Person is required.", title="Missing Sales Person")
 
@@ -103,14 +121,18 @@ def recalculate_cascading_discount(doc, method=None):
 # A Customer may cap how many of their submitted invoices can stay unpaid at
 # once (Customer.custom_max_active_invoices; blank/0 = no limit). An invoice
 # counts as "active" purely by outstanding_amount > 0 -- delivery status is
-# not considered. Enforced only at submit (drafts are unrestricted). The only
-# bypass is Legacy Import (bp.utils.legacy_import): those invoices were
-# already issued in the old system, so the limit cannot un-issue them.
+# not considered. Enforced only at submit (drafts are unrestricted). Two
+# bypasses: Legacy Import (bp.utils.legacy_import), because those invoices
+# were already issued in the old system and the limit cannot un-issue them,
+# and the BP Settings switch used while the site is set up or trialled.
 # ---------------------------------------------------------------------------
 
 
 def check_active_invoice_limit(doc, method=None):
 	if doc.is_return or frappe.flags.get("bp_legacy_import"):
+		return
+
+	if not enforced("enforce_active_invoice_limit"):
 		return
 
 	limit = frappe.db.get_value("Customer", doc.customer, "custom_max_active_invoices")

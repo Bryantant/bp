@@ -7,6 +7,9 @@
  "field_order": [
   "print_control_section",
   "print_lock_reset_roles",
+  "invoice_control_section",
+  "enforce_credit_limit",
+  "enforce_active_invoice_limit",
   "sales_invoice_import_section",
   "import_placeholder_item",
   "legacy_import_section",
@@ -34,6 +37,25 @@
    "fieldtype": "Table MultiSelect",
    "label": "Print Lock Reset Roles",
    "options": "BP Print Lock Reset Role"
+  },
+  {
+   "fieldname": "invoice_control_section",
+   "fieldtype": "Section Break",
+   "label": "Invoice Controls"
+  },
+  {
+   "default": "1",
+   "description": "Blocks submitting a Sales Invoice once the customer is over their credit limit. Turn OFF while the site is being set up or trialled, and ON again before go-live.",
+   "fieldname": "enforce_credit_limit",
+   "fieldtype": "Check",
+   "label": "Enforce Credit Limit"
+  },
+  {
+   "default": "1",
+   "description": "Blocks submitting a Sales Invoice once the customer has reached Max Active Invoices. Turn OFF while the site is being set up or trialled, and ON again before go-live.",
+   "fieldname": "enforce_active_invoice_limit",
+   "fieldtype": "Check",
+   "label": "Enforce Active Invoice Limit"
   },
   {
    "fieldname": "sales_invoice_import_section",
