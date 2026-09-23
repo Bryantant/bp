@@ -5,7 +5,13 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from bp.overrides.sales_invoice import enforced
-from bp.utils.import_legacy_opening_invoices import SOURCES, _check_rows, _ensure_fiscal_years
+from bp.utils.import_legacy_opening_invoices import (
+	SOURCES,
+	_check_rows,
+	_ensure_fiscal_years,
+	_upload_value,
+	_write_upload_csv,
+)
 
 
 def legacy_row(**kw):
@@ -76,6 +82,37 @@ class IntegrationTestOpeningInvoices(IntegrationTestCase):
 		missing = _ensure_fiscal_years([{"date": date(2019, 11, 23)}], dry_run=True)
 		self.assertEqual(frappe.db.count("Fiscal Year"), before)
 		self.assertIsInstance(missing, list)
+
+	# -- export for the tool's Upload button ---------------------------------
+
+	def test_upload_values_match_what_the_grid_parses(self):
+		"""The grid Upload converts dates with the user's date format and
+		amounts with flt(), so write dates that way and amounts ungrouped."""
+		meta = frappe.get_meta("Opening Invoice Creation Tool Item")
+		date_df = meta.get_field("posting_date")
+		amount_df = meta.get_field("outstanding_amount")
+		with patch("bp.utils.import_legacy_opening_invoices.formatdate", return_value="31-08-2018"):
+			self.assertEqual(_upload_value(date_df, date(2018, 8, 31)), "31-08-2018")
+		self.assertEqual(_upload_value(amount_df, 16286082021.34), "16286082021.34")
+		self.assertEqual(_upload_value(amount_df, None), "")
+
+	def test_upload_file_has_the_bulk_edit_layout(self):
+		"""Row 2 holds the fieldnames the Upload maps by; data starts on row 7."""
+		import csv
+		import os
+		import tempfile
+
+		meta = frappe.get_meta("Opening Invoice Creation Tool Item")
+		fields = [meta.get_field("invoice_number"), meta.get_field("outstanding_amount")]
+		with tempfile.TemporaryDirectory() as tmp:
+			path = os.path.join(tmp, "t.csv")
+			_write_upload_csv(path, fields, [{"invoice_number": "IF25030183", "outstanding_amount": 5}], "dd-mm-yyyy")
+			with open(path, newline="", encoding="utf-8") as f:
+				data = list(csv.reader(f))
+		self.assertEqual(data[0], ["Bulk Edit Invoices"])
+		self.assertEqual(data[2], ["invoice_number", "outstanding_amount"])
+		self.assertEqual(data[6], ["------"])
+		self.assertEqual(data[7], ["IF25030183", "5.00"])
 
 	# -- invoice controls -----------------------------------------------------
 

@@ -41,8 +41,12 @@ to be relaxed -- it also passes `ignore_mandatory`. Re-running is safe: a
 legacy number that already exists in ERP is skipped and reported.
 """
 
+import csv
+import math
+import os
+
 import frappe
-from frappe.utils import add_days, flt, getdate
+from frappe.utils import add_days, flt, formatdate, getdate
 
 from bp.utils.legacy_db import fetch_all, get_legacy_connection
 
@@ -50,6 +54,9 @@ DEFAULT_CUTOFF = "2026-09-01"
 # The tool runs its rows inline below 50 and enqueues above it; chunking keeps
 # every run synchronous, so what this script reports is what really happened.
 CHUNK = 49
+# The tool's grid Upload refuses a CSV with more than 5000 data rows
+# (frappe/public/js/frappe/form/grid.js, setup_allow_bulk_edit).
+UPLOAD_MAX_ROWS = 5000
 
 SOURCES = {
 	"Sales": {
@@ -137,6 +144,102 @@ def run(
 		"failed": len(failed),
 		"skipped": skipped,
 	}
+
+
+def export(invoice_type="Sales", cutoff=DEFAULT_CUTOFF, out_dir=None):
+	"""Write the opening invoices as CSV files for the tool's own Upload button.
+
+	For re-doing the opening balances by hand -- e.g. after the training data is
+	wiped -- without this script: the same rows `run()` would create, in the
+	exact layout the Opening Invoice Creation Tool's grid Download produces and
+	its Upload reads back. Nothing is written to the site.
+
+	Layout the grid Upload expects: row 0 title, row 1 labels, row 2
+	fieldnames (what it actually maps by), row 3 descriptions, rows 4-6 notes,
+	data from row 7; dates in the system date format; at most UPLOAD_MAX_ROWS
+	data rows per file, so larger sets are split into equal parts.
+
+	Returns the written paths and the rows, for the caller to summarise.
+	"""
+	source = SOURCES[invoice_type]
+	rows = _fetch_unpaid(source, cutoff)
+	# Every row counts, whether or not it is in ERP right now: the file is for
+	# a site where these balances have been cleared out again.
+	usable, skipped = _check_rows(
+		rows, source, ignore_existing={(r["InvoicNo"] or "").strip() for r in rows}
+	)
+	names = _party_names(source["party_type"], {row["party"] for row in usable})
+
+	meta = frappe.get_meta("Opening Invoice Creation Tool Item")
+	from frappe.model import no_value_fields
+
+	fields = [df for df in meta.fields if df.fieldtype not in no_value_fields]
+	date_format = frappe.db.get_single_value("System Settings", "date_format") or "dd-mm-yyyy"
+
+	records = []
+	for row in usable:
+		record = _tool_row(source, invoice_type, row)
+		record["party_name"] = names.get(row["party"], "")
+		records.append(record)
+
+	out_dir = out_dir or frappe.get_site_path("private", "files", "opening_invoice_upload")
+	os.makedirs(out_dir, exist_ok=True)
+	parts = max(1, math.ceil(len(records) / UPLOAD_MAX_ROWS))
+	per_part = math.ceil(len(records) / parts) if records else 0
+	label = "AR" if invoice_type == "Sales" else "AP"
+	stamp = getdate(cutoff).strftime("%Y%m%d")
+
+	paths = []
+	for part in range(parts):
+		chunk = records[part * per_part : (part + 1) * per_part]
+		suffix = f"_{part + 1}of{parts}" if parts > 1 else ""
+		path = os.path.join(out_dir, f"Opening_Invoice_{label}_cutoff{stamp}{suffix}.csv")
+		_write_upload_csv(path, fields, chunk, date_format)
+		paths.append(path)
+
+	return {"paths": paths, "records": records, "skipped": skipped}
+
+
+def _party_names(party_type, codes):
+	if not codes:
+		return {}
+	title = "customer_name" if party_type == "Customer" else "supplier_name"
+	return dict(
+		frappe.get_all(party_type, filters={"name": ["in", list(codes)]}, fields=["name", title], as_list=True)
+	)
+
+
+def _write_upload_csv(path, fields, records, date_format):
+	"""One file in the grid's Bulk Edit layout (see export())."""
+	header = [
+		["Bulk Edit Invoices"],
+		[df.label for df in fields],
+		[df.fieldname for df in fields],
+		[
+			(df.description or "") + (" " + date_format if df.fieldtype == "Date" else "")
+			for df in fields
+		],
+		["The CSV format is case sensitive"],
+		["Do not edit headers which are preset in the template"],
+		["------"],
+	]
+	with open(path, "w", newline="", encoding="utf-8") as f:
+		writer = csv.writer(f)
+		writer.writerows(header)
+		for record in records:
+			writer.writerow([_upload_value(df, record.get(df.fieldname)) for df in fields])
+
+
+def _upload_value(df, value):
+	if value in (None, ""):
+		return ""
+	if df.fieldtype == "Date":
+		# The Upload converts with the user's date format, so write it in that.
+		return formatdate(value)
+	if df.fieldtype == "Currency":
+		# Plain digits and a dot: grouping separators would be misread by flt().
+		return f"{flt(value, 2):.2f}"
+	return value
 
 
 def _tool_row(source, invoice_type, row):
