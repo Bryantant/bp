@@ -3,6 +3,7 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from frappe import _
 from frappe.utils import cint, now_datetime
 
+from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
 from bp.utils.cascading_discount import calculate_cascading_discount
 
 
@@ -36,6 +37,7 @@ def enforced(setting):
 	value = frappe.db.get_single_value("BP Settings", setting)
 	return True if value is None else bool(cint(value))
 
+
 # ---------------------------------------------------------------------------
 # Naming series — Source Warehouse token
 #
@@ -55,7 +57,39 @@ def get_warehouse_name_code(doc, token=None):
 	return frappe.db.get_value("Warehouse", warehouse, "warehouse_name") or ""
 
 
+def before_naming(doc, method=None):
+	"""Pick the naming series for an invoice that carries no goods.
+
+	The default series is built from the Source Warehouse
+	(get_warehouse_name_code below), which a value-only invoice -- an AR debit
+	note charging a principal for a promo claim, say -- does not have. Those
+	get NON_STOCK_SERIES instead; see
+	bp.patches.v1_0.allow_non_stock_sales_invoices.
+
+	Runs on insert only, before the name is generated, and only matters when
+	the user has not picked a series by hand.
+	"""
+	if doc.naming_series and doc.naming_series != WAREHOUSE_SERIES:
+		# Somebody picked a series deliberately (API, Data Import, an amended
+		# document): leave it. Only the default, which Frappe fills in from the
+		# first option, is ours to change.
+		return
+
+	if doc.is_opening == "Yes":
+		# Named after the legacy invoice number before it reaches here, so the
+		# series is never used -- say so rather than set a misleading one.
+		return
+
+	# Update Stock is the deciding flag, not an empty Source Warehouse: the
+	# warehouse is only mandatory while Update Stock is on, so "no warehouse"
+	# can also mean a goods invoice that is simply not filled in yet, and that
+	# one should keep the warehouse series and fail validation as usual.
+	doc.naming_series = WAREHOUSE_SERIES if doc.update_stock else NON_STOCK_SERIES
+
+
 def validate(doc, method=None):
+	require_warehouse_when_stock_moves(doc)
+
 	if not doc.bp_sales_person and doc.is_opening == "Yes":
 		# An opening balance carries no salesperson of its own; use the
 		# customer's, and accept none rather than blocking the import.
@@ -71,6 +105,24 @@ def validate(doc, method=None):
 	row = doc.append("sales_team", {})
 	row.sales_person = doc.bp_sales_person
 	row.allocated_percentage = 100
+
+
+def require_warehouse_when_stock_moves(doc):
+	"""Source Warehouse is mandatory for any invoice that moves stock.
+
+	The Property Setter (bp.patches.v1_0.allow_non_stock_sales_invoices) makes
+	the field conditionally mandatory so a value-only invoice -- an AR debit
+	note for a principal's claim -- can be saved without one. But Frappe
+	enforces `mandatory_depends_on` in the browser only: a server-side insert
+	(Legacy Import, the REST API, Data Import) would otherwise slip through
+	with no warehouse and a naming series that resolves to nothing. This keeps
+	the rule where it has to hold.
+	"""
+	if doc.update_stock and not doc.set_warehouse:
+		frappe.throw(
+			_("Source Warehouse is required when the invoice updates stock."),
+			title=_("Missing Source Warehouse"),
+		)
 
 
 # ---------------------------------------------------------------------------

@@ -168,6 +168,7 @@ doctype_js = {
 
 doc_events = {
 	"Sales Invoice": {
+		"before_naming": "bp.overrides.sales_invoice.before_naming",
 		"validate": "bp.overrides.sales_invoice.validate",
 		"before_validate": "bp.overrides.sales_invoice.recalculate_cascading_discount",
 		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",

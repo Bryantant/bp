@@ -15,7 +15,10 @@ def legacy_row(**kw):
 		"party": "A0088",
 		"CredTerm": 30,
 		"AmtInv": 10_000_000,
-		"AmtPaid": 0,
+		# What the invoice had already been paid BEFORE the cutoff date; the
+		# fetch computes this per invoice (payments after the cutoff do not
+		# reduce the balance being carried over).
+		"paid_before": 0,
 		"InvStatu": 1,
 	}
 	row.update(kw)
@@ -35,17 +38,24 @@ class IntegrationTestOpeningInvoices(IntegrationTestCase):
 		):
 			return _check_rows(rows, self.source)
 
-	def test_carries_the_remaining_balance_not_the_invoice_total(self):
-		usable, _ = self._check([legacy_row(AmtInv=10_000_000, AmtPaid=4_000_000)])
+	def test_carries_the_balance_owed_on_the_cutoff_date(self):
+		usable, _ = self._check([legacy_row(AmtInv=10_000_000, paid_before=4_000_000)])
 		self.assertEqual(usable[0]["outstanding"], 6_000_000)
+
+	def test_an_invoice_paid_after_the_cutoff_is_still_carried_in_full(self):
+		"""Its payment is imported as a document later and needs this invoice
+		to settle against -- carrying it at today's zero balance would leave
+		that payment with no target."""
+		usable, _ = self._check([legacy_row(AmtInv=10_000_000, paid_before=0, InvStatu=5)])
+		self.assertEqual(usable[0]["outstanding"], 10_000_000)
 
 	def test_due_date_follows_the_legacy_credit_term(self):
 		usable, _ = self._check([legacy_row(InvDate=datetime(2025, 3, 17), CredTerm=30)])
 		self.assertEqual(usable[0]["date"], date(2025, 3, 17))
 		self.assertEqual(usable[0]["due_date"], date(2025, 4, 16))
 
-	def test_fully_settled_rows_are_left_out(self):
-		usable, skipped = self._check([legacy_row(AmtInv=1_000_000, AmtPaid=1_000_000)])
+	def test_rows_already_settled_before_the_cutoff_are_left_out(self):
+		usable, skipped = self._check([legacy_row(AmtInv=1_000_000, paid_before=1_000_000)])
 		self.assertEqual(usable, [])
 		self.assertEqual(len(skipped["zero_amount"]), 1)
 
