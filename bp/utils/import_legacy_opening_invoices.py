@@ -10,10 +10,11 @@ writing invoices directly: it is the native, supported path, it posts against
 the company's Temporary Opening account, and the resulting documents are
 flagged `is_opening = Yes` so they stay out of sales/purchase reporting.
 
-Source: `invoices` (AR) / `apinvoice` (AP), rows whose status is neither Full
-Paid (5) nor Cancelled (9) and where AmtInv > AmtPaid. The **remaining**
-amount is what is carried over, not the original invoice value, so an invoice
-already half paid in the old system comes in at its balance.
+Source: `invoices` (AR) / `apinvoice` (AP), every non-cancelled invoice dated
+before the cutoff that still owed something **on that date** -- the invoice
+amount less the payments made before the cutoff. An invoice paid after the
+cutoff still belongs here: its payment is imported as a document later and
+needs this invoice to settle against.
 
 One row per legacy invoice (not one per customer), with the legacy number in
 `invoice_number` and the original date kept as the posting date, so the AR
@@ -45,9 +46,10 @@ from frappe.utils import add_days, flt, getdate
 
 from bp.utils.legacy_db import fetch_all, get_legacy_connection
 
-DEFAULT_CUTOFF = "2026-01-01"
-# Legacy InvStatu: 5 = Full Paid, 9 = Cancelled -- everything else can still owe.
-SETTLED_STATUSES = (5, 9)
+DEFAULT_CUTOFF = "2026-09-01"
+# The tool runs its rows inline below 50 and enqueues above it; chunking keeps
+# every run synchronous, so what this script reports is what really happened.
+CHUNK = 49
 
 SOURCES = {
 	"Sales": {
@@ -55,18 +57,38 @@ SOURCES = {
 		"party_field": "CustCode",
 		"table": "invoices",
 		"doctype": "Sales Invoice",
+		"payment_table": "arpaymen",
+		"payment_note": "arrecnot",
+		"payment_key": "RecNotNo",
+		"payment_date": "RecNotDt",
 	},
 	"Purchase": {
 		"party_type": "Supplier",
 		"party_field": "SuppCode",
 		"table": "apinvoice",
 		"doctype": "Purchase Invoice",
+		"payment_table": "appaymen",
+		"payment_note": "appaynot",
+		"payment_key": "PayNotNo",
+		"payment_date": "PayNotDt",
 	},
 }
 
 
-def run(dry_run=True, invoice_type="Sales", cutoff=DEFAULT_CUTOFF, company=None, lift_freeze=False):
+def run(
+	dry_run=True,
+	invoice_type="Sales",
+	cutoff=DEFAULT_CUTOFF,
+	company=None,
+	lift_freeze=False,
+	recreate=False,
+):
 	"""Create opening invoices for legacy invoices still unpaid before `cutoff`.
+
+	recreate: cancel and delete opening invoices carried over on an earlier
+	run before creating them again -- needed when the cutoff moves, since the
+	balance carried depends on it. Only ever touches invoices flagged
+	is_opening whose name is one of the legacy numbers in scope.
 
 	lift_freeze: the company's "Accounts Frozen Till Date" blocks posting into
 	the years these invoices belong to, and ERPNext blocks Administrator from
@@ -82,53 +104,34 @@ def run(dry_run=True, invoice_type="Sales", cutoff=DEFAULT_CUTOFF, company=None,
 	)
 
 	rows = _fetch_unpaid(source, cutoff)
-	usable, skipped = _check_rows(rows, source)
+	purged = _purge_existing(source, rows, dry_run, lift_freeze) if recreate else []
+	usable, skipped = _check_rows(rows, source, ignore_existing=set(purged))
 	missing_years = _ensure_fiscal_years(usable, dry_run)
-
-	tool = frappe.new_doc("Opening Invoice Creation Tool")
-	tool.company = company
-	tool.invoice_type = invoice_type
-	tool.create_missing_party = 0
-	for row in usable:
-		tool.append(
-			"invoices",
-			{
-				"party_type": source["party_type"],
-				"party": row["party"],
-				"outstanding_amount": row["outstanding"],
-				"posting_date": row["date"],
-				"due_date": row["due_date"],
-				"invoice_number": row["legacy_no"],
-				"item_name": f"Saldo awal {row['legacy_no']}",
-				"qty": 1,
-				# On the purchase side this becomes the Purchase Invoice's
-				# Supplier Invoice Date, keeping the bill's own date visible.
-				"supplier_invoice_date": row["date"] if invoice_type == "Purchase" else None,
-			},
-		)
 
 	created, failed = [], []
 	if usable and not dry_run:
 		_check_freeze(company, usable, lift_freeze)
 		frozen_till = _set_freeze(company, None) if lift_freeze else None
 		try:
-			tool.insert()
-			# The tool inserts each invoice with set_name = invoice_number, so
-			# the ERP document is named after the legacy invoice (IF25120123),
-			# which is also how we tell afterwards what really got created.
-			tool.make_invoices()
-			frappe.db.commit()
+			for start in range(0, len(usable), CHUNK):
+				chunk = usable[start : start + CHUNK]
+				_make_chunk(company, invoice_type, source, chunk)
+				# The tool names each invoice after the legacy number, which is
+				# how we tell afterwards what really got created.
+				done = [row for row in chunk if frappe.db.exists(source["doctype"], row["legacy_no"])]
+				created += done
+				failed += [row for row in chunk if row not in done]
+				_fix_purchase_invoice_type(invoice_type, done)
+				print(f"  {len(created) + len(failed):>5}/{len(usable)} processed, {len(failed)} failed")
 		finally:
 			if lift_freeze:
 				_set_freeze(company, frozen_till)
 				print(f"Accounts Frozen Till Date restored to {frozen_till}.")
-		created = [row for row in usable if frappe.db.exists(source["doctype"], row["legacy_no"])]
-		failed = [row for row in usable if row not in created]
-		_fix_purchase_invoice_type(invoice_type, created)
 
-	_print_summary(invoice_type, cutoff, rows, usable, skipped, dry_run, tool, missing_years, created, failed)
+	_print_summary(invoice_type, cutoff, rows, usable, skipped, dry_run, missing_years, created, failed, purged)
 	return {
 		"found": len(rows),
+		"purged": len(purged),
 		"usable": len(usable),
 		"created": len(created),
 		"failed": len(failed),
@@ -136,31 +139,109 @@ def run(dry_run=True, invoice_type="Sales", cutoff=DEFAULT_CUTOFF, company=None,
 	}
 
 
+def _tool_row(source, invoice_type, row):
+	return {
+		"party_type": source["party_type"],
+		"party": row["party"],
+		"outstanding_amount": row["outstanding"],
+		"posting_date": row["date"],
+		"due_date": row["due_date"],
+		"invoice_number": row["legacy_no"],
+		"item_name": f"Saldo awal {row['legacy_no']}",
+		"qty": 1,
+		# On the purchase side this becomes the Purchase Invoice's Supplier
+		# Invoice Date, keeping the bill's own date visible.
+		"supplier_invoice_date": row["date"] if invoice_type == "Purchase" else None,
+	}
+
+
+def _make_chunk(company, invoice_type, source, chunk):
+	"""Hand one chunk to the Opening Invoice Creation Tool (a Single doctype).
+
+	Kept under the tool's own 50-row threshold so it creates the invoices
+	inline instead of enqueueing them, which is what lets this script report
+	what actually happened rather than what it asked for.
+	"""
+	tool = frappe.get_single("Opening Invoice Creation Tool")
+	tool.company = company
+	tool.invoice_type = invoice_type
+	tool.create_missing_party = 0
+	tool.set("invoices", [])
+	for row in chunk:
+		tool.append("invoices", _tool_row(source, invoice_type, row))
+	tool.save()
+	tool.make_invoices()
+	frappe.db.commit()
+
+
+def _purge_existing(source, rows, dry_run, lift_freeze):
+	"""Remove opening invoices carried over by an earlier run of this script."""
+	names = [
+		row["InvoicNo"].strip()
+		for row in rows
+		if frappe.db.get_value(source["doctype"], row["InvoicNo"].strip(), "is_opening") == "Yes"
+	]
+	if dry_run or not names:
+		return names
+
+	company = frappe.db.get_value(source["doctype"], names[0], "company")
+	frozen_till = _set_freeze(company, None) if lift_freeze else None
+	try:
+		for name in names:
+			doc = frappe.get_doc(source["doctype"], name)
+			if doc.docstatus == 1:
+				doc.cancel()
+			doc.delete()
+			frappe.db.commit()
+	finally:
+		if lift_freeze:
+			_set_freeze(company, frozen_till)
+	return names
+
+
 def _fetch_unpaid(source, cutoff):
+	"""Invoices still owing **on the cutoff date**.
+
+	Not "still owing today": an invoice from before the cutoff that was paid
+	afterwards was part of the balance being carried over, and the payment
+	that settled it is imported as a document later -- it needs this invoice
+	to settle against. What is carried is therefore the invoice amount less
+	only the payments made before the cutoff.
+	"""
 	conn = get_legacy_connection()
 	try:
 		return fetch_all(
 			conn,
 			f"""
-			SELECT InvoicNo, InvDate, {source["party_field"]} AS party, CredTerm,
-				AmtInv, AmtPaid, InvStatu
-			FROM {source["table"]}
-			WHERE InvDate < %s AND InvStatu NOT IN %s AND AmtInv > AmtPaid
-			ORDER BY InvDate, InvoicNo
+			SELECT i.InvoicNo, i.InvDate, i.{source["party_field"]} AS party, i.CredTerm, i.AmtInv,
+				IFNULL(SUM(CASE WHEN n.{source["payment_date"]} < %s AND n.RNStatus <> 9
+					THEN p.AmonPaid END), 0) AS paid_before
+			FROM {source["table"]} i
+			LEFT JOIN {source["payment_table"]} p ON p.InvoDNNo = i.InvoicNo
+			LEFT JOIN {source["payment_note"]} n ON n.{source["payment_key"]} = p.{source["payment_key"]}
+			WHERE i.InvDate < %s AND i.InvStatu <> 9
+			GROUP BY i.InvoicNo, i.InvDate, i.{source["party_field"]}, i.CredTerm, i.AmtInv
+			HAVING i.AmtInv - paid_before > 0
+			ORDER BY i.InvDate, i.InvoicNo
 			""",
-			(getdate(cutoff), SETTLED_STATUSES),
+			(getdate(cutoff), getdate(cutoff)),
 		)
 	finally:
 		conn.close()
 
 
-def _check_rows(rows, source):
-	"""Split the legacy rows into what can be imported and what cannot."""
+def _check_rows(rows, source, ignore_existing=()):
+	"""Split the legacy rows into what can be imported and what cannot.
+
+	ignore_existing holds the legacy numbers being replaced this run: on a dry
+	run they are still in ERP, and counting them as "already there" would
+	understate what the real run would create.
+	"""
 	usable, skipped = [], {"party_missing": [], "already_in_erp": [], "zero_amount": []}
 	for row in rows:
 		legacy_no = (row["InvoicNo"] or "").strip()
 		party = (row["party"] or "").strip()
-		outstanding = flt(row["AmtInv"]) - flt(row["AmtPaid"])
+		outstanding = flt(row["AmtInv"]) - flt(row["paid_before"])
 		date = getdate(row["InvDate"])
 
 		if outstanding <= 0:
@@ -171,7 +252,7 @@ def _check_rows(rows, source):
 			continue
 		# The tool names each invoice after the legacy number, so that name
 		# existing already means this balance was carried over before.
-		if frappe.db.exists(source["doctype"], legacy_no):
+		if legacy_no not in ignore_existing and frappe.db.exists(source["doctype"], legacy_no):
 			skipped["already_in_erp"].append(legacy_no)
 			continue
 
@@ -260,12 +341,15 @@ def _set_freeze(company, value):
 	return previous
 
 
-def _print_summary(invoice_type, cutoff, rows, usable, skipped, dry_run, tool, missing_years, created, failed):
+def _print_summary(invoice_type, cutoff, rows, usable, skipped, dry_run, missing_years, created, failed, purged):
 	mode = "(DRY RUN, nothing written)" if dry_run else "(COMMITTED)"
 	total = sum(r["outstanding"] for r in usable)
 	print(f"\n--- legacy opening invoices {mode} ---")
 	print(f"Type:                 {invoice_type} (before {cutoff})")
-	print(f"Legacy rows unpaid:   {len(rows)}")
+	print(f"Legacy rows open:     {len(rows)}")
+	if purged:
+		verb = "would be replaced" if dry_run else "replaced"
+		print(f"Earlier openings {verb}: {len(purged)}")
 	print(f"Opening invoices:     {len(usable)}" + ("" if dry_run else f" -> created {len(created)}, failed {len(failed)}"))
 	print(f"Total outstanding:    {total:,.2f}")
 	print(f"Parties:              {len({r['party'] for r in usable})}")
