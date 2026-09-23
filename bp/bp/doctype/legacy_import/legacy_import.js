@@ -77,8 +77,12 @@ frappe.ui.form.on("Legacy Import", {
 			);
 		}
 
-		const view_log = (status) =
-			frappe.set_route("List", "Legacy Import Log", status ? { legacy_import: frm.doc.name, status } : { legacy_import: frm.doc.name });
+		const view_log = (status) =>
+			frappe.set_route(
+				"List",
+				"Legacy Import Log",
+				status ? { legacy_import: frm.doc.name, status } : { legacy_import: frm.doc.name }
+			);
 		frm.add_custom_button(__("All"), () => view_log(), __("View Log"));
 		frm.add_custom_button(__("Errors"), () => view_log("Error"), __("View Log"));
 		frm.add_custom_button(__("Changed in Old System"), () => view_log("Changed in Legacy"), __("View Log"));
