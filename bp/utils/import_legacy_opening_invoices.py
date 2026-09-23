@@ -101,6 +101,9 @@ def run(dry_run=True, invoice_type="Sales", cutoff=DEFAULT_CUTOFF, company=None,
 				"invoice_number": row["legacy_no"],
 				"item_name": f"Saldo awal {row['legacy_no']}",
 				"qty": 1,
+				# On the purchase side this becomes the Purchase Invoice's
+				# Supplier Invoice Date, keeping the bill's own date visible.
+				"supplier_invoice_date": row["date"] if invoice_type == "Purchase" else None,
 			},
 		)
 
@@ -121,6 +124,7 @@ def run(dry_run=True, invoice_type="Sales", cutoff=DEFAULT_CUTOFF, company=None,
 				print(f"Accounts Frozen Till Date restored to {frozen_till}.")
 		created = [row for row in usable if frappe.db.exists(source["doctype"], row["legacy_no"])]
 		failed = [row for row in usable if row not in created]
+		_fix_purchase_invoice_type(invoice_type, created)
 
 	_print_summary(invoice_type, cutoff, rows, usable, skipped, dry_run, tool, missing_years, created, failed)
 	return {
@@ -213,6 +217,23 @@ def _ensure_fiscal_years(usable, dry_run):
 		).insert(ignore_permissions=True)
 	frappe.db.commit()
 	return missing
+
+
+def _fix_purchase_invoice_type(invoice_type, created):
+	"""Label opening Purchase Invoices as Credit.
+
+	custom_invoice_type is a mandatory Select the tool knows nothing about, so
+	Frappe fills it with the first option ("Cash") -- wrong for a balance that
+	is still outstanding. It only labels the document here: the name was set
+	from the legacy number, so the Cash/Credit naming series is not involved.
+	"""
+	if invoice_type != "Purchase":
+		return
+	for row in created:
+		frappe.db.set_value(
+			"Purchase Invoice", row["legacy_no"], "custom_invoice_type", "Credit", update_modified=False
+		)
+	frappe.db.commit()
 
 
 def _check_freeze(company, usable, lift_freeze):
