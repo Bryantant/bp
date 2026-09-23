@@ -1,6 +1,47 @@
 import frappe
+from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from frappe import _
 from frappe.utils import cint, now_datetime
+
+from bp.utils.cascading_discount import calculate_cascading_discount
+
+
+# ---------------------------------------------------------------------------
+# Controller override
+#
+# Legacy Import (bp.utils.legacy_import) submits invoices the client already
+# issued in the old system, so ERP's credit-limit block would be refusing an
+# invoice the customer has physically received -- the same reasoning as the
+# active invoice limit below. check_credit_limit() is called from core's
+# on_submit and takes no bypass argument, so the only clean way to skip it is
+# this controller override (registered via override_doctype_class in hooks.py).
+# Outside an import run nothing changes.
+# ---------------------------------------------------------------------------
+
+
+class BPSalesInvoice(SalesInvoice):
+	def check_credit_limit(self):
+		if frappe.flags.get("bp_legacy_import"):
+			return
+		super().check_credit_limit()
+
+# ---------------------------------------------------------------------------
+# Naming series — Source Warehouse token
+#
+# Registered via the `naming_series_variables` hook (hooks.py) so the native
+# naming-series engine (frappe.model.naming.parse_naming_series) can resolve
+# the "warehouse_name_code" token in the series pattern
+# (warehouse_name_code.YY.MM.####) to the Warehouse's clean display name,
+# instead of embedding the raw Warehouse Link value (which includes the
+# company abbreviation, e.g. "A - BP").
+# ---------------------------------------------------------------------------
+
+
+def get_warehouse_name_code(doc, token=None):
+	warehouse = doc.get("set_warehouse")
+	if not warehouse:
+		return ""
+	return frappe.db.get_value("Warehouse", warehouse, "warehouse_name") or ""
 
 
 def validate(doc, method=None):
@@ -15,18 +56,61 @@ def validate(doc, method=None):
 
 
 # ---------------------------------------------------------------------------
+# Two-tier cascading discount (Discount 1 = supplier/claimable, Discount 2 =
+# internal policy)
+#
+# Authoritative server-side recompute: bp/public/js/sales_invoice.js keeps
+# the same math in sync live in the browser, but this runs unconditionally on
+# every save so REST/data-importer saves that skip the browser still end up
+# with a correct rate -- same rationale as the sales_team rebuild in
+# validate() above.
+#
+# Wired via "before_validate" (not "validate") in hooks.py so the final rate
+# is in place before core's own validate() -> calculate_taxes_and_totals()
+# computes amount/net_amount/totals from it.
+# ---------------------------------------------------------------------------
+
+
+def recalculate_cascading_discount(doc, method=None):
+	for item in doc.get("items", []):
+		if not item.get("price_list_rate"):
+			# No list price to cascade from (item has no Item Price / no price list
+			# match) -- leave whatever rate was entered untouched instead of
+			# zeroing it out.
+			continue
+		result = calculate_cascading_discount(
+			price_list_rate=item.get("price_list_rate"),
+			discount1_percentage=item.get("custom_discount1_percentage"),
+			discount1_amount=item.get("custom_discount1_amount"),
+			discount2_percentage=item.get("custom_discount2_percentage"),
+			discount2_amount=item.get("custom_discount2_amount"),
+			rate_precision=item.precision("rate"),
+			pct_precision=item.precision("custom_discount1_percentage"),
+			amt_precision=item.precision("custom_discount1_amount"),
+		)
+		item.custom_discount1_percentage = result["discount1_percentage"]
+		item.custom_discount1_amount = result["discount1_amount"]
+		item.custom_discount2_percentage = result["discount2_percentage"]
+		item.custom_discount2_amount = result["discount2_amount"]
+		item.rate = result["rate"]
+		item.discount_percentage = result["discount_percentage"]
+		item.discount_amount = result["discount_amount"]
+
+
+# ---------------------------------------------------------------------------
 # Active invoice limit
 #
 # A Customer may cap how many of their submitted invoices can stay unpaid at
 # once (Customer.custom_max_active_invoices; blank/0 = no limit). An invoice
 # counts as "active" purely by outstanding_amount > 0 -- delivery status is
-# not considered. Enforced only at submit (drafts are unrestricted), with no
-# bypass: the only way past it is to pay off an existing open invoice.
+# not considered. Enforced only at submit (drafts are unrestricted). The only
+# bypass is Legacy Import (bp.utils.legacy_import): those invoices were
+# already issued in the old system, so the limit cannot un-issue them.
 # ---------------------------------------------------------------------------
 
 
 def check_active_invoice_limit(doc, method=None):
-	if doc.is_return:
+	if doc.is_return or frappe.flags.get("bp_legacy_import"):
 		return
 
 	limit = frappe.db.get_value("Customer", doc.customer, "custom_max_active_invoices")
@@ -59,13 +143,15 @@ def check_active_invoice_limit(doc, method=None):
 # ---------------------------------------------------------------------------
 # Print-once control + audit trail
 #
-# A submitted Sales Invoice may be printed once. Reprints are blocked until an
-# Accounts Manager resets the lock. Every Printed / Blocked / Reset event is
-# written to "BP Invoice Print Log".
+# A submitted Sales Invoice may be printed once. Reprints are blocked until a
+# user with an allowed role (see _reset_allowed_roles) resets the lock. Every
+# Printed / Blocked / Reset event is written to "BP Invoice Print Log".
 #
-# Enforcement lives at the real print path so it can't be bypassed:
-#   - before_print  -> fires on the on-screen print view (and during PDF render)
-#   - on_print_pdf  -> fires when a PDF is generated (interactive Download PDF)
+# Enforcement lives entirely in before_print, which fires on every print/PDF
+# render (on-screen preview, on-screen "Print", single Download PDF, and bulk
+# Download PDF from the list view) regardless of which pdf_generator is
+# configured -- see the comment in _gate() for why the `on_print_pdf` app
+# hook this used to also rely on is not usable for that purpose.
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +173,44 @@ def _log(doc, event_type, print_format=None, remarks=None):
 		frappe.log_error(title="BP Invoice Print Log insert failed")
 
 
-def _gate(doc, print_format, is_pdf):
+# Whitelisted endpoints that mean a human explicitly asked for a PDF right
+# now -- as opposed to a background/email/automated PDF (e.g. "Attach Print"
+# on submit, or a scheduled job), which runs with no matching `cmd` in
+# frappe.form_dict and must NOT consume the print-once allowance.
+#
+# Both the single-invoice "Download PDF" button AND the List View's bulk
+# "Print" action (selecting one or more rows -- the everyday way invoices
+# actually get printed) must consume the lock.
+_INTERACTIVE_PRINT_CMDS = {
+	"frappe.utils.print_format.download_pdf",
+	"frappe.utils.print_format.download_multi_pdf",
+}
+
+
+def _force_commit():
+	"""Commit immediately, bypassing both safeguards that make a plain
+	frappe.db.commit() unreliable here:
+
+	1. Document.hook()'s compose() increments db._disable_transaction_control
+	   while a doc_events hook (like before_print) is running, specifically to
+	   stop hooks from committing mid-transaction -- so a plain commit() call
+	   from inside before_print is always a silent no-op (just a warning).
+	2. Download PDF (single or bulk) is a GET request, and frappe/app.py's
+	   request teardown *always* rolls back GET requests unless something set
+	   frappe.local.flags.commit -- and if we're about to frappe.throw(), the
+	   teardown's exception path rolls back unconditionally regardless of that
+	   flag. The only way for a row to survive an imminent throw is to commit
+	   it for real, right now.
+	"""
+	saved = frappe.db._disable_transaction_control
+	frappe.db._disable_transaction_control = 0
+	try:
+		frappe.db.commit()
+	finally:
+		frappe.db._disable_transaction_control = saved
+
+
+def _gate(doc, print_format):
 	"""Block reprints of a submitted invoice; consume the allowance on a real print."""
 	if getattr(doc, "docstatus", 0) != 1:
 		return  # only submitted invoices are governed
@@ -99,15 +222,25 @@ def _gate(doc, print_format, is_pdf):
 	if doc.get("bp_print_status") == "Printed":
 		# Locked: record the attempt, then abort the render so no copy is produced.
 		_log(doc, "Blocked", print_format, remarks="Reprint attempt blocked")
-		frappe.db.commit()  # persist the Blocked row before the throw rolls back the request
+		_force_commit()  # persist the Blocked row before the throw rolls back the request
 		frappe.throw(
-			_("This invoice has already been printed. Ask an Accounts Manager to reset it before reprinting."),
+			_("This invoice has already been printed. Ask a user with the {0} role to reset it before reprinting.").format(
+				_reset_allowed_roles_label()
+			),
 			title=_("Already Printed"),
 		)
 
-	# Not yet printed. A plain on-screen preview is allowed and does not consume;
-	# only an actual print (trigger_print) or interactive PDF download consumes.
-	actual = is_pdf or bool(frappe.form_dict.get("trigger_print"))
+	# Not yet printed. A plain on-screen preview (or the in-dialog preview
+	# AJAX call) does not consume the allowance -- only an actual print
+	# consumes: the on-screen "Print" button (trigger_print=1 on the
+	# /printview route) or an interactive Download PDF request, single or
+	# bulk. Detected here in before_print rather than via the `on_print_pdf`
+	# app hook because before_print fires for every render regardless of
+	# which pdf_generator is configured (wkhtmltopdf or chrome) -- when a
+	# custom pdf_generator hook is set (this site uses "chrome"), Frappe
+	# returns the PDF before ever calling on_print_pdf, so that hook never
+	# fired here and the lock was silently never consumed.
+	actual = bool(frappe.form_dict.get("trigger_print")) or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
 	if not actual:
 		return
 
@@ -123,24 +256,21 @@ def _gate(doc, print_format, is_pdf):
 		},
 		update_modified=False,
 	)
-	frappe.db.commit()
+	# Download PDF (single or bulk) is a GET request. frappe/app.py's request
+	# teardown rolls back every GET by default (GETs are conventionally
+	# read-only) -- this flag is Frappe's own sanctioned way for a GET handler
+	# to say "I intentionally wrote data, please commit" (see e.g. CRM's
+	# crm.api: frappe.local.flags.commit = True). Without it, the write above
+	# would be silently discarded and the invoice would stay reprint-able
+	# forever, however many times before_print correctly detects the print.
+	frappe.local.flags.commit = True
 	frappe.flags.bp_print_done = doc.name
 
 
 def before_print(doc, method=None, print_settings=None):
-	"""doc_events hook — fires on the on-screen print view for a Sales Invoice."""
-	_gate(doc, frappe.form_dict.get("format"), is_pdf=False)
-
-
-def on_print_pdf(doctype=None, name=None, print_format=None, **kwargs):
-	"""App hook — fires on PDF generation. Consume only for the interactive
-	'Download PDF' request, not for programmatic/email/background PDF generation."""
-	if doctype != "Sales Invoice" or not name:
-		return
-	if frappe.form_dict.get("doctype") != "Sales Invoice" or frappe.form_dict.get("name") != name:
-		return
-	doc = frappe.get_doc("Sales Invoice", name)
-	_gate(doc, print_format, is_pdf=True)
+	"""doc_events hook — fires on every print/PDF render for a Sales Invoice,
+	regardless of pdf_generator. The sole enforcement point; see _gate()."""
+	_gate(doc, frappe.form_dict.get("format"))
 
 
 def _reset_allowed_roles():
@@ -158,6 +288,19 @@ def _reset_allowed_roles():
 	except Exception:
 		pass
 	return list(set(roles))
+
+
+def _reset_allowed_roles_label():
+	"""Role name(s) for the "Already Printed" message, built from the same
+	source as _reset_allowed_roles() so the wording never drifts from what BP
+	Settings actually allows (e.g. if the child table is left empty, the
+	message correctly names System Manager instead of a role nobody in that
+	state can use). No leading article ("a"/"an") so multi-word and plural
+	role names always read correctly in the "role to reset it" sentence."""
+	roles = sorted(_reset_allowed_roles())
+	if len(roles) == 1:
+		return roles[0]
+	return "{0} or {1}".format(", ".join(roles[:-1]), roles[-1])
 
 
 @frappe.whitelist()

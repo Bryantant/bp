@@ -1,0 +1,179 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2026-09-22 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "legacy_import",
+  "status",
+  "legacy_doctype",
+  "legacy_no",
+  "legacy_date",
+  "column_break_legacy",
+  "legacy_party",
+  "legacy_status",
+  "legacy_amount",
+  "legacy_updated_at",
+  "legacy_created_by",
+  "erp_section",
+  "erp_doctype",
+  "erp_name",
+  "column_break_erp",
+  "erp_amount",
+  "message_section",
+  "message"
+ ],
+ "fields": [
+  {
+   "fieldname": "legacy_import",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Legacy Import",
+   "options": "Legacy Import",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Ready\nCreated\nAlready Imported\nChanged in Legacy\nCancelled in Legacy\nSkipped\nError\nRe-synced\nCancelled in ERP\nIgnored",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "legacy_doctype",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Document Type",
+   "options": "Sales Invoice\nPurchase Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Old System No",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "legacy_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_legacy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "legacy_party",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Customer / Supplier Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_status",
+   "fieldtype": "Int",
+   "label": "Old System Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_amount",
+   "fieldtype": "Currency",
+   "label": "Old System Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_updated_at",
+   "fieldtype": "Datetime",
+   "label": "Old System Last Updated",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_created_by",
+   "fieldtype": "Data",
+   "label": "Old System Created By",
+   "read_only": 1
+  },
+  {
+   "fieldname": "erp_section",
+   "fieldtype": "Section Break",
+   "label": "ERP Document"
+  },
+  {
+   "fieldname": "erp_doctype",
+   "fieldtype": "Link",
+   "label": "ERP Document Type",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "erp_name",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "label": "ERP Document",
+   "options": "erp_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_erp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "erp_amount",
+   "fieldtype": "Currency",
+   "label": "ERP Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "message_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Small Text",
+   "label": "Message",
+   "read_only": 1,
+   "in_list_view": 1
+  }
+ ],
+ "in_create": 1,
+ "links": [],
+ "modified": "2026-09-22 00:00:00",
+ "modified_by": "Administrator",
+ "module": "BP",
+ "name": "Legacy Import Log",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "legacy_no",
+ "track_changes": 0
+}

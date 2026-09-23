@@ -32,7 +32,7 @@ app_include_css = ["/assets/bp/css/custom.css"]
 # served with max-age=43200, and a plain path would leave returning visitors on
 # a 12-hour-stale copy after every deploy. Run `bench build --app bp` on change.
 web_include_css = ["/assets/bp/css/custom.css", "storefront.bundle.css"]
-app_include_js = ["desk_overrides.bundle.js"]
+app_include_js = ["desk_overrides.bundle.js", "discount_utils.bundle.js"]
 web_include_js = ["storefront.bundle.js"]
 extend_bootinfo = "bp.boot.boot_session"
 
@@ -62,6 +62,7 @@ fixtures = ["Client Script"]
 doctype_js = {
 	"Stock Entry": "public/js/stock_entry.js",
 	"Sales Invoice": "public/js/sales_invoice.js",
+	"Sales Order": "public/js/sales_order.js",
 	"Customer": "public/js/customer.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
@@ -168,8 +169,12 @@ doctype_js = {
 doc_events = {
 	"Sales Invoice": {
 		"validate": "bp.overrides.sales_invoice.validate",
+		"before_validate": "bp.overrides.sales_invoice.recalculate_cascading_discount",
 		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",
 		"before_print": "bp.overrides.sales_invoice.before_print",
+	},
+	"Sales Order": {
+		"before_validate": "bp.overrides.sales_order.recalculate_cascading_discount",
 	},
 	"Payment Entry": {
 		"validate": "bp.overrides.payment_entry.validate",
@@ -182,10 +187,17 @@ doc_events = {
 	},
 }
 
-# Print Events
-# ------------
-# Fires when a PDF is generated; covers the interactive "Download PDF" path.
-on_print_pdf = "bp.overrides.sales_invoice.on_print_pdf"
+# Naming Series Variables
+# ------------------------
+# Custom tokens usable inside naming series patterns (frappe.model.naming).
+override_doctype_class = {
+	"Sales Invoice": "bp.overrides.sales_invoice.BPSalesInvoice",
+}
+
+naming_series_variables = {
+	"invoice_type_code": ["bp.overrides.purchase_invoice.get_invoice_type_code"],
+	"warehouse_name_code": ["bp.overrides.sales_invoice.get_warehouse_name_code"],
+}
 
 # Scheduled Tasks
 # ---------------

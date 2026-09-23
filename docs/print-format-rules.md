@@ -33,9 +33,10 @@ How:
 4. If a rule is superseded, edit it in place and note the change isn't needed — this
    file reflects current state, not a changelog.
 
-Cross-reference: general (non-print) Frappe/ERPNext lessons for this environment live
-in `/Users/bryantantonio/Dev/benchv15/MD/dev-notes/ERPNEXT_DEV_LESSONS.md` — put
-print-format-specific stuff here instead, so it's easy to find when working in `bp`.
+Cross-reference: general (non-print) Frappe/ERPNext lessons live in
+`/Users/bryantantonio/Dev/docs/learning-reference/erpnext-dev-lessons.md` (shared across
+benchv15/benchv16) — put print-format-specific stuff here instead, so it's easy to find
+when working in `bp`.
 
 ### When stuck
 

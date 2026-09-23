@@ -138,6 +138,18 @@
 .bp-legacy-format .bp-note {
 	flex: 1 1 auto;
 }
+/* doc.terms is Quill-authored HTML wrapped in .ql-editor; Frappe's own print
+   CSS sets font-family/font-size directly on .ql-editor (and its children
+   inherit that, not our .bp-legacy-format rule), so it prints in the app's
+   default UI font instead of this format's Times New Roman. Force it back
+   on every descendant, matching the color reset at the top of this file. */
+.bp-legacy-format .bp-note, .bp-legacy-format .bp-note * {
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 12px !important;
+}
+.bp-legacy-format .bp-note .ql-editor {
+	padding: 0 !important;
+}
 
 .bp-legacy-format .bp-signature-panel {
 	margin-top: 10px;

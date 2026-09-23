@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_rename": 0,
  "creation": "2026-06-12 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -9,7 +8,19 @@
   "print_control_section",
   "print_lock_reset_roles",
   "sales_invoice_import_section",
-  "import_placeholder_item"
+  "import_placeholder_item",
+  "legacy_import_section",
+  "legacy_import_enabled",
+  "legacy_db_host",
+  "legacy_db_port",
+  "legacy_db_name",
+  "column_break_legacy_db",
+  "legacy_db_user",
+  "legacy_db_password",
+  "test_legacy_connection",
+  "legacy_mapping_section",
+  "legacy_warehouse_map",
+  "legacy_amount_tolerance"
  ],
  "fields": [
   {
@@ -35,12 +46,79 @@
    "fieldtype": "Link",
    "label": "Import Placeholder Item",
    "options": "Item"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_import_section",
+   "fieldtype": "Section Break",
+   "label": "Old System Import (Migration)"
+  },
+  {
+   "default": "0",
+   "description": "Allows running Legacy Import batches. Turn off at cutover so nothing more is pulled from the old system.",
+   "fieldname": "legacy_import_enabled",
+   "fieldtype": "Check",
+   "label": "Legacy Import Enabled"
+  },
+  {
+   "fieldname": "legacy_db_host",
+   "fieldtype": "Data",
+   "label": "Old System DB Host"
+  },
+  {
+   "default": "3306",
+   "fieldname": "legacy_db_port",
+   "fieldtype": "Int",
+   "label": "Old System DB Port"
+  },
+  {
+   "default": "bpol-trd",
+   "fieldname": "legacy_db_name",
+   "fieldtype": "Data",
+   "label": "Old System Database"
+  },
+  {
+   "fieldname": "column_break_legacy_db",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "legacy_db_user",
+   "fieldtype": "Data",
+   "label": "Old System DB User"
+  },
+  {
+   "fieldname": "legacy_db_password",
+   "fieldtype": "Password",
+   "label": "Old System DB Password"
+  },
+  {
+   "fieldname": "test_legacy_connection",
+   "fieldtype": "Button",
+   "label": "Test Connection"
+  },
+  {
+   "fieldname": "legacy_mapping_section",
+   "fieldtype": "Section Break",
+   "label": "Old System Mapping"
+  },
+  {
+   "description": "Every old-system branch that appears on an imported document must be mapped, otherwise that document is rejected.",
+   "fieldname": "legacy_warehouse_map",
+   "fieldtype": "Table",
+   "label": "Branch to Warehouse",
+   "options": "BP Legacy Warehouse Map"
+  },
+  {
+   "default": "10",
+   "description": "Maximum allowed difference (in company currency) between the old-system invoice total and the ERP Grand Total. Larger differences are rejected.",
+   "fieldname": "legacy_amount_tolerance",
+   "fieldtype": "Currency",
+   "label": "Amount Tolerance"
   }
  ],
- "index_web_pages_for_search": 0,
  "issingle": 1,
  "links": [],
- "modified": "2026-06-12 00:00:00",
+ "modified": "2026-09-22 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",
@@ -52,7 +130,6 @@
    "email": 1,
    "print": 1,
    "read": 1,
-   "report": 1,
    "role": "System Manager",
    "share": 1,
    "write": 1

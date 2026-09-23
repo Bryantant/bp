@@ -74,12 +74,11 @@
 	{% endif %}
 {% endif %}
 
-{#- Footer note: Company-level boilerplate text ("Barang telah diterima..."),
-    not per-invoice. custom_catatan_do__invoice_copy is a plain Small Text
-    field (unlike the original custom_catatan_do__invoice, which is a Text
-    Editor/HTML field) -- newlines are converted to <br> since a plain <div>
-    would otherwise collapse them. -#}
-{% set invoice_note = ((frappe.db.get_value("Company", doc.company, "custom_catatan_do__invoice_copy") or "")|replace("\n", "<br>")) if doc.company else "" %}
+{#- Footer note: the document's own Terms and Conditions (doc.terms, populated
+    from the linked Terms and Conditions template via doc.tc_name, or entered
+    directly on the doc). It's a Text Editor/HTML field, so it's rendered as-is
+    (|safe), unlike the old plain-text company field which needed \n -> <br>. -#}
+{% set invoice_note = doc.terms or "" %}
 
 {#- Bottom-right "printed by / at" stamp -- blank until the invoice has
     actually been printed once (bp_last_printed_by/at, set by

@@ -1,7 +1,7 @@
 {
  "app": "bp",
  "charts": [],
- "content": "[{\"id\":\"setupHeader\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Setup</b></span>\",\"col\":12}},{\"id\":\"cardMaster\",\"type\":\"card\",\"data\":{\"card_name\":\"Master\",\"col\":4}},{\"id\":\"cardTrading\",\"type\":\"card\",\"data\":{\"card_name\":\"Trading\",\"col\":4}}]",
+ "content": "[{\"id\": \"setupHeader\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup</b></span>\", \"col\": 12}}, {\"id\": \"cardMaster\", \"type\": \"card\", \"data\": {\"card_name\": \"Master\", \"col\": 4}}, {\"id\": \"cardTrading\", \"type\": \"card\", \"data\": {\"card_name\": \"Trading\", \"col\": 4}}, {\"id\": \"cardMigration\", \"type\": \"card\", \"data\": {\"card_name\": \"Migration\", \"col\": 4}}]",
  "creation": "2026-06-17 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -84,6 +84,16 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Shipping Rule",
+   "link_count": 0,
+   "link_to": "Shipping Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Trading",
    "link_count": 0,
    "onboard": 0,
@@ -135,6 +145,44 @@
    "label": "Stock Entry",
    "link_count": 0,
    "link_to": "Stock Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Migration",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Legacy Import",
+   "link_count": 0,
+   "link_to": "Legacy Import",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Legacy Import Log",
+   "link_count": 0,
+   "link_to": "Legacy Import Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "BP Settings",
+   "link_count": 0,
+   "link_to": "BP Settings",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
