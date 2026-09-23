@@ -59,3 +59,15 @@ def run_import(name):
 	from bp.utils.legacy_import.runner import enqueue_run
 
 	enqueue_run(_get_batch(name))
+
+
+@frappe.whitelist()
+def revert_import(name):
+	"""Cancel every ERP document this batch created.
+
+	Note: the old-system documents themselves are untouched, so running this
+	batch again would import them once more.
+	"""
+	from bp.utils.legacy_import.runner import enqueue_revert
+
+	enqueue_revert(_get_batch(name))

@@ -149,6 +149,45 @@ class IntegrationTestLegacyImport(IntegrationTestCase):
 		with self.assertRaises(LegacyImportError):
 			check_amount(doc, 990, tolerance=1)
 
+	# -- revert ---------------------------------------------------------------
+
+	def test_revert_cancels_sales_before_purchases(self):
+		"""Cancelling a sale puts stock back, cancelling a receipt takes it out,
+		so sales must go first or the warehouse dips negative in between."""
+		from unittest.mock import patch as mock_patch
+
+		from bp.utils.legacy_import.runner import revertable_logs
+
+		rows = [
+			frappe._dict(name=1, legacy_doctype=PURCHASE_INVOICE, erp_name="PF2606001", legacy_no="C1"),
+			frappe._dict(name=2, legacy_doctype=SALES_INVOICE, erp_name="A2606002", legacy_no="F2"),
+			frappe._dict(name=3, legacy_doctype=SALES_INVOICE, erp_name="A2606001", legacy_no="F1"),
+		]
+		with mock_patch("bp.utils.legacy_import.runner.frappe.get_all", return_value=rows):
+			ordered = revertable_logs("LI-2026-00001")
+		self.assertEqual([r.erp_name for r in ordered], ["A2606001", "A2606002", "PF2606001"])
+
+	def test_only_documents_this_batch_still_owns_are_revertable(self):
+		from unittest.mock import patch as mock_patch
+
+		from bp.utils.legacy_import.runner import revertable_logs
+
+		with mock_patch("bp.utils.legacy_import.runner.frappe.get_all", return_value=[]) as get_all:
+			revertable_logs("LI-2026-00001")
+		filters = get_all.call_args.kwargs["filters"]
+		self.assertEqual(filters["status"], ["in", ("Created", "Re-synced")])
+		self.assertEqual(filters["erp_name"], ["is", "set"])
+
+	def test_an_imported_document_can_be_cancelled_from_its_log_row(self):
+		from bp.bp.doctype.legacy_import_log.legacy_import_log import CANCELLABLE, NEEDS_DECISION
+
+		for status in ("Created", "Re-synced"):
+			self.assertIn(status, CANCELLABLE)
+		for status in NEEDS_DECISION:
+			self.assertIn(status, CANCELLABLE)
+		# Re-sync and Ignore stay limited to the flagged ones.
+		self.assertNotIn("Created", NEEDS_DECISION)
+
 	# -- credit limit bypass --------------------------------------------------
 
 	def test_credit_limit_checked_unless_legacy_import_is_running(self):

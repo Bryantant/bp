@@ -9,17 +9,20 @@ from frappe.model.document import Document
 # matches the old system and Legacy Import deliberately does not fix it on
 # its own (see bp.utils.legacy_import.runner).
 NEEDS_DECISION = ("Changed in Legacy", "Cancelled in Legacy")
+# Cancelling is also allowed for a document this batch created -- that is how
+# a single imported document is taken back out of ERP.
+CANCELLABLE = NEEDS_DECISION + ("Created", "Re-synced")
 
 
 class LegacyImportLog(Document):
 	pass
 
 
-def _get_log_for_action(name):
+def _get_log_for_action(name, allowed=NEEDS_DECISION):
 	frappe.only_for(("System Manager", "Accounts Manager"))
 	log = frappe.get_doc("Legacy Import Log", name)
-	if log.status not in NEEDS_DECISION:
-		frappe.throw(_("Only logs with status {0} can be acted on.").format(" / ".join(NEEDS_DECISION)))
+	if log.status not in allowed:
+		frappe.throw(_("Only logs with status {0} can be acted on.").format(" / ".join(allowed)))
 	return log
 
 
@@ -36,10 +39,11 @@ def resync(name):
 
 @frappe.whitelist()
 def cancel_in_erp(name):
-	"""Cancel the ERP document because the old system reversed/cancelled/deleted it."""
+	"""Cancel the ERP document -- either because the old system reversed it, or
+	because this one imported document should be taken back out of ERP."""
 	from bp.utils.legacy_import.runner import cancel_log
 
-	return cancel_log(_get_log_for_action(name))
+	return cancel_log(_get_log_for_action(name, allowed=CANCELLABLE))
 
 
 @frappe.whitelist()

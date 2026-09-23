@@ -44,6 +44,8 @@ BUILDERS = {
 # Log statuses that record something done to ERP; a later preview/run of the
 # same batch must not overwrite them with "Already Imported".
 FINAL_LOG_STATUSES = ("Created", "Re-synced", "Cancelled in ERP", "Ignored")
+# A batch in one of these states has a background job working on it.
+BUSY_STATUSES = ("Queued", "Running")
 PROGRESS_EVENT = "legacy_import_progress"
 
 
@@ -116,12 +118,12 @@ def enqueue_run(batch):
 	ensure_enabled()
 	running = frappe.get_all(
 		"Legacy Import",
-		filters={"status": ["in", ("Queued", "Running")], "name": ["!=", batch.name]},
+		filters={"status": ["in", BUSY_STATUSES], "name": ["!=", batch.name]},
 		pluck="name",
 	)
 	if running:
 		frappe.throw(_("Legacy Import {0} is still running. Wait for it to finish.").format(running[0]))
-	if batch.status in ("Queued", "Running"):
+	if batch.status in BUSY_STATUSES:
 		frappe.throw(_("This batch is already {0}.").format(batch.status))
 
 	batch.db_set({"status": "Queued", "run_by": frappe.session.user, "error_message": None})
@@ -134,6 +136,57 @@ def enqueue_run(batch):
 		deduplicate=True,
 		enqueue_after_commit=True,
 	)
+
+
+def enqueue_revert(batch):
+	"""Queue a revert of everything this batch created.
+
+	Deliberately does NOT require legacy_import_enabled: after cutover the
+	switch is off, and that is exactly when someone may still need to undo a
+	batch.
+	"""
+	busy = frappe.get_all(
+		"Legacy Import",
+		filters={"status": ["in", BUSY_STATUSES], "name": ["!=", batch.name]},
+		pluck="name",
+	)
+	if busy:
+		frappe.throw(_("Legacy Import {0} is still running. Wait for it to finish.").format(busy[0]))
+	if batch.status in BUSY_STATUSES:
+		frappe.throw(_("This batch is already {0}.").format(batch.status))
+	if not revertable_logs(batch.name):
+		frappe.throw(_("This batch has no documents left to cancel."))
+
+	batch.db_set({"status": "Queued", "run_by": frappe.session.user, "error_message": None})
+	frappe.enqueue(
+		"bp.utils.legacy_import.runner.revert_batch",
+		queue="long",
+		timeout=3600,
+		batch_name=batch.name,
+		job_id=f"legacy_import_revert::{batch.name}",
+		deduplicate=True,
+		enqueue_after_commit=True,
+	)
+
+
+def revertable_logs(batch_name):
+	"""Logs whose ERP document this batch created and that is still live.
+
+	Sales Invoices are cancelled before Purchase Invoices: cancelling a sale
+	puts stock back, cancelling a receipt takes it out, so this order avoids
+	going negative in between.
+	"""
+	logs = frappe.get_all(
+		"Legacy Import Log",
+		filters={
+			"legacy_import": batch_name,
+			"status": ["in", ("Created", "Re-synced")],
+			"erp_name": ["is", "set"],
+		},
+		fields=["name", "legacy_doctype", "legacy_no", "erp_name", "legacy_date"],
+	)
+	order = {SALES_INVOICE: 0, PURCHASE_INVOICE: 1}
+	return sorted(logs, key=lambda log: (order.get(log.legacy_doctype, 9), log.erp_name))
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +261,89 @@ def create_document(entry, ctx):
 		entry.update(status="Error", erp_name=None, erp_amount=None, message=error_text(e))
 		if not isinstance(e, (LegacyImportError, frappe.ValidationError)):
 			frappe.log_error(title=f"Legacy Import {legacy_doc['legacy_no']} failed")
+	finally:
+		frappe.clear_messages()
+
+
+def revert_batch(batch_name):
+	"""Cancel every ERP document this batch created, one transaction each.
+
+	A document that cannot be cancelled (a paid invoice, stock already
+	consumed) is left alone with the reason on its log row; the rest still
+	get reverted.
+	"""
+	batch = frappe.get_doc("Legacy Import", batch_name)
+	batch.db_set({"status": "Running", "started_at": now_datetime(), "finished_at": None})
+	frappe.db.commit()
+
+	frappe.flags.bp_legacy_import = True
+	errors = 0
+	try:
+		logs = revertable_logs(batch_name)
+		for i, log in enumerate(logs, start=1):
+			if not cancel_document(log):
+				errors += 1
+			frappe.db.commit()
+			frappe.publish_realtime(
+				PROGRESS_EVENT,
+				{"done": i, "total": len(logs), "legacy_no": log.legacy_no},
+				doctype="Legacy Import",
+				docname=batch_name,
+			)
+
+		update_summary(batch_name)
+		frappe.db.set_value(
+			"Legacy Import",
+			batch_name,
+			{
+				"status": "Reverted with Errors" if errors else "Reverted",
+				"finished_at": now_datetime(),
+			},
+		)
+		frappe.db.commit()
+	except Exception:
+		frappe.db.rollback()
+		frappe.db.set_value(
+			"Legacy Import",
+			batch_name,
+			{"status": "Failed", "finished_at": now_datetime(), "error_message": frappe.get_traceback()},
+		)
+		frappe.db.commit()
+		frappe.log_error(title=f"Legacy Import revert {batch_name} failed")
+	finally:
+		frappe.flags.bp_legacy_import = False
+		frappe.publish_realtime(
+			PROGRESS_EVENT, {"finished": True}, doctype="Legacy Import", docname=batch_name
+		)
+
+
+def cancel_document(log):
+	"""Cancel one imported document; returns False (and records why) on failure."""
+	frappe.db.savepoint("legacy_revert_doc")
+	try:
+		doc = frappe.get_doc(log.legacy_doctype, log.erp_name)
+		if doc.docstatus == 1:
+			doc.cancel()
+		elif doc.docstatus == 0:
+			doc.delete()
+		frappe.db.set_value(
+			"Legacy Import Log",
+			log.name,
+			{
+				"status": "Cancelled in ERP",
+				"message": _("Cancelled by {0}").format(frappe.session.user),
+			},
+		)
+		return True
+	except Exception as e:
+		frappe.db.rollback(save_point="legacy_revert_doc")
+		frappe.db.set_value(
+			"Legacy Import Log",
+			log.name,
+			"message",
+			_("Could not cancel {0}: {1}").format(log.erp_name, error_text(e)),
+		)
+		return False
 	finally:
 		frappe.clear_messages()
 
@@ -479,14 +615,15 @@ def resync_log(log):
 
 
 def cancel_log(log):
-	doc = frappe.get_doc(log.legacy_doctype, log.erp_name)
-	if doc.docstatus == 1:
-		doc.cancel()
-	elif doc.docstatus == 0:
-		doc.delete()
-	log.db_set({"status": "Cancelled in ERP", "message": _("Cancelled by {0}").format(frappe.session.user)})
+	"""Cancel the one ERP document this log points at (the Log's own button)."""
+	frappe.flags.bp_legacy_import = True
+	try:
+		if not cancel_document(log):
+			frappe.throw(frappe.db.get_value("Legacy Import Log", log.name, "message"))
+	finally:
+		frappe.flags.bp_legacy_import = False
 	update_summary(log.legacy_import)
-	return log.status
+	return "Cancelled in ERP"
 
 
 def ignore_log(log):

@@ -25,10 +25,18 @@ frappe.ui.form.on("Legacy Import Log", {
 				)
 			);
 		}
-		if (["Changed in Legacy", "Cancelled in Legacy"].includes(frm.doc.status)) {
+		if (["Changed in Legacy", "Cancelled in Legacy", "Created", "Re-synced"].includes(frm.doc.status)) {
 			frm.add_custom_button(__("Cancel in ERP"), () =>
-				act("cancel_in_erp", __("Cancel {0} in ERP?", [frm.doc.erp_name]))
+				act(
+					"cancel_in_erp",
+					__(
+						"Cancel {0} in ERP? Its stock and ledger entries are reversed. The document in the old system is not touched, so a later import of this batch would create it again.",
+						[frm.doc.erp_name]
+					)
+				)
 			);
+		}
+		if (["Changed in Legacy", "Cancelled in Legacy"].includes(frm.doc.status)) {
 			frm.add_custom_button(__("Ignore"), () =>
 				act("ignore", __("Keep {0} as it is and stop flagging it?", [frm.doc.erp_name]))
 			);

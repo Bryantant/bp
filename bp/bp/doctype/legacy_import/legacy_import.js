@@ -12,7 +12,7 @@ frappe.ui.form.on("Legacy Import", {
 				return;
 			}
 			frm.dashboard.show_progress(
-				__("Importing"),
+				__("Working"),
 				(data.done / data.total) * 100,
 				__("{0} of {1} ({2})", [data.done, data.total, data.legacy_no])
 			);
@@ -57,7 +57,27 @@ frappe.ui.form.on("Legacy Import", {
 			).addClass("btn-primary");
 		}
 
-		const view_log = (status) =>
+		if (!busy && frm.doc.created_count) {
+			frm.add_custom_button(__("Revert Batch"), () =>
+				frappe.warn(
+					__("Cancel {0} document(s) created by this batch?", [frm.doc.created_count]),
+					__(
+						"Every Sales Invoice and Purchase Invoice this batch created is cancelled in ERP, which reverses its stock and ledger entries. Documents that cannot be cancelled (already paid, stock already used) are left as they are, with the reason on their log row.<br><br>The documents in the old system are not touched, so running this batch again would import them once more."
+					),
+					() =>
+						frappe.call({
+							method: LEGACY_IMPORT_METHOD + "revert_import",
+							args: { name: frm.doc.name },
+							freeze: true,
+							callback: () => frm.reload_doc(),
+						}),
+					__("Cancel Them"),
+					true
+				)
+			);
+		}
+
+		const view_log = (status) =
 			frappe.set_route("List", "Legacy Import Log", status ? { legacy_import: frm.doc.name, status } : { legacy_import: frm.doc.name });
 		frm.add_custom_button(__("All"), () => view_log(), __("View Log"));
 		frm.add_custom_button(__("Errors"), () => view_log("Error"), __("View Log"));
