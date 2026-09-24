@@ -42,7 +42,9 @@ update_website_context = ["bp.storefront.app_shell.update_website_context"]
 
 # Fixtures
 # --------
-fixtures = ["Client Script"]
+# "Hicom -" scripts belong to the cross-client access control (hicom16/scripts/hicom_access_control),
+# installed per site - keep them out of bp's fixtures.
+fixtures = [{"dt": "Client Script", "filters": [["name", "not like", "Hicom -%"]]}]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/bp/css/bp.css"
