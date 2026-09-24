@@ -18,7 +18,7 @@ This is no longer a bare scaffold. Current customizations:
 
 - **DocTypes** (`bp/bp/doctype/`): `bp_settings`, `bp_print_lock_reset_role`, `bp_invoice_print_log` — supporting an invoice print-lock feature.
 - **Workspace** (`bp/bp/workspace/setup/`): a "Setup" workspace grouping Master and Trading shortcuts.
-- **Workspace Sidebar** (`bp/workspace_sidebar/setup.json`) and **Desktop Icon** (`bp/desktop_icon/setup.json`): a custom "Setup" sidebar/icon for the same links.
+- **Workspace Sidebar** (`bp/workspace_sidebar/setup.json`): a custom "Setup" sidebar for the same links. (Its Desktop Icon was removed; `bench migrate` deletes the orphaned icon record on other sites.)
 - **Desk overrides** (`bp/public/js/desk_overrides.bundle.js`): hides Help/About/Frappe Support from the desk menu and starts the sidebar collapsed on form/list pages. Loaded as a bundle via `app_include_js` in `hooks.py`.
 - **Boot extension** (`bp/boot.py`): `boot_session` relabels app titles in the desk sidebar (e.g. ERPNext → "Hicom System") via the `extend_bootinfo` hook — no core files touched.
 
@@ -34,7 +34,6 @@ bp/                       # Python package (app root)
     doctype/              # Custom DocTypes (JSON + controller .py)
     workspace/            # Desk workspace definitions (setup/setup.json)
     page/                 # Custom desk pages
-  desktop_icon/           # Desktop Icon fixture (setup.json)
   workspace_sidebar/      # Workspace Sidebar fixture (setup.json)
   config/                 # Desktop icon / module config
   patches/                # Patch scripts
