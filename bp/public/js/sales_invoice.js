@@ -106,11 +106,12 @@ bp.sales_invoice = {
 			__("Print")
 		);
 
-		// Reset button visibility is driven by BP Settings → Print Lock Reset Roles.
-		// Ask the server (it's the source of truth and enforces on the call too).
+		// Reset button visibility is driven by BP Settings → Enforce Print Once and
+		// Print Lock Reset Roles. Ask the server (it's the source of truth and
+		// enforces on the call too). With the lock switched off there is nothing to reset.
 		if (frm.doc.bp_print_status === "Printed") {
-			frappe.xcall("bp.overrides.sales_invoice.can_reset_print_lock").then(function (can_reset) {
-				if (can_reset) {
+			frappe.xcall("bp.overrides.sales_invoice.print_lock_state").then(function (state) {
+				if (state.enforced && state.can_reset) {
 					bp.sales_invoice.add_reset_button(frm);
 				}
 			});

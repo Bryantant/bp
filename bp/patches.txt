@@ -32,3 +32,4 @@ bp.patches.v1_0.prefix_purchase_invoice_naming_series_with_p
 bp.patches.v1_0.add_legacy_import_fields
 bp.patches.v1_0.set_company_cogs_and_round_off_accounts
 bp.patches.v1_0.allow_non_stock_sales_invoices
+bp.patches.v1_0.seed_enforce_print_once

@@ -34,8 +34,10 @@ def enforced(setting):
 	trialled -- an empty/unsaved BP Settings must not silently disable them,
 	so a missing value counts as enforced.
 	"""
-	value = frappe.db.get_single_value("BP Settings", setting)
-	return True if value is None else bool(cint(value))
+	# Read the raw row: get_single_value() casts a never-saved Check to 0, which
+	# would make every newly added switch start life switched OFF.
+	row = frappe.db.sql("select value from `tabSingles` where doctype = %s and field = %s", ("BP Settings", setting))
+	return True if not row or row[0][0] is None else bool(cint(row[0][0]))
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +223,10 @@ def check_active_invoice_limit(doc, method=None):
 # user with an allowed role (see _reset_allowed_roles) resets the lock. Every
 # Printed / Blocked / Reset event is written to "BP Invoice Print Log".
 #
+# BP Settings > Enforce Print Once switches the blocking off: reprints are then
+# allowed, but each print is still logged and counted, so the audit trail and
+# bp_print_status stay accurate if the lock is switched back on later.
+#
 # Enforcement lives entirely in before_print, which fires on every print/PDF
 # render (on-screen preview, on-screen "Print", single Download PDF, and bulk
 # Download PDF from the list view) regardless of which pdf_generator is
@@ -293,7 +299,7 @@ def _gate(doc, print_format):
 	if frappe.flags.read_only:
 		return  # maintenance/replica — can't write; don't break printing
 
-	if doc.get("bp_print_status") == "Printed":
+	if doc.get("bp_print_status") == "Printed" and enforced("enforce_print_once"):
 		# Locked: record the attempt, then abort the render so no copy is produced.
 		_log(doc, "Blocked", print_format, remarks="Reprint attempt blocked")
 		_force_commit()  # persist the Blocked row before the throw rolls back the request
@@ -375,6 +381,13 @@ def _reset_allowed_roles_label():
 	if len(roles) == 1:
 		return roles[0]
 	return "{0} or {1}".format(", ".join(roles[:-1]), roles[-1])
+
+
+@frappe.whitelist()
+def print_lock_state():
+	"""Client helper -- BP Settings is System Manager-only, so the form asks here
+	whether the lock is on and whether this user may reset it."""
+	return {"enforced": enforced("enforce_print_once"), "can_reset": can_reset_print_lock()}
 
 
 @frappe.whitelist()
