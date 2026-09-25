@@ -34,3 +34,4 @@ bp.patches.v1_0.set_company_cogs_and_round_off_accounts
 bp.patches.v1_0.allow_non_stock_sales_invoices
 bp.patches.v1_0.seed_enforce_print_once
 bp.patches.v1_0.add_journal_entry_usage_guide
+bp.patches.v1_0.grant_stock_user_read_stock_settings
