@@ -24,6 +24,7 @@
   "test_legacy_connection",
   "legacy_mapping_section",
   "legacy_warehouse_map",
+  "legacy_payment_method_map",
   "legacy_amount_tolerance"
  ],
  "fields": [
@@ -139,6 +140,13 @@
    "options": "BP Legacy Warehouse Map"
   },
   {
+   "description": "Normalnya metode bayar sistem lama dipetakan otomatis ke akun ERP yang nomornya sama dengan akun GL lama. Isi di sini hanya untuk pengecualian: metode yang akunnya belum ada di ERP atau harus diarahkan ke akun lain.",
+   "fieldname": "legacy_payment_method_map",
+   "fieldtype": "Table",
+   "label": "Payment Method to Account",
+   "options": "BP Legacy Payment Method Map"
+  },
+  {
    "default": "10",
    "description": "Selisih maksimum yang diizinkan (dalam mata uang perusahaan) antara total invoice sistem lama dan Grand Total di ERP. Selisih yang lebih besar akan ditolak.",
    "fieldname": "legacy_amount_tolerance",
@@ -148,7 +156,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-24 18:00:00.000000",
+ "modified": "2026-09-26 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",

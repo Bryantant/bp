@@ -195,6 +195,7 @@ doc_events = {
 # Custom tokens usable inside naming series patterns (frappe.model.naming).
 override_doctype_class = {
 	"Sales Invoice": "bp.overrides.sales_invoice.BPSalesInvoice",
+	"Journal Entry": "bp.overrides.journal_entry.BPJournalEntry",
 }
 
 naming_series_variables = {

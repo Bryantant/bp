@@ -35,3 +35,5 @@ bp.patches.v1_0.allow_non_stock_sales_invoices
 bp.patches.v1_0.seed_enforce_print_once
 bp.patches.v1_0.add_journal_entry_usage_guide
 bp.patches.v1_0.grant_stock_user_read_stock_settings
+bp.patches.v1_0.add_legacy_import_fields_for_more_doctypes
+bp.patches.v1_0.add_sales_return_naming_series

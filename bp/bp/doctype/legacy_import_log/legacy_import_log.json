@@ -49,7 +49,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Document Type",
-   "options": "Sales Invoice\nPurchase Invoice",
+   "options": "Purchase Invoice\nStock Mutation\nStock Set\nSales Invoice\nSales Return\nAR Receipt\nAP Payment",
    "read_only": 1
   },
   {
@@ -89,7 +89,8 @@
    "fieldname": "legacy_amount",
    "fieldtype": "Currency",
    "label": "Old System Amount",
-   "read_only": 1
+   "read_only": 1,
+   "depends_on": "eval:![\"Stock Mutation\", \"Stock Set\"].includes(doc.legacy_doctype)"
   },
   {
    "fieldname": "legacy_updated_at",
@@ -131,7 +132,8 @@
    "fieldname": "erp_amount",
    "fieldtype": "Currency",
    "label": "ERP Amount",
-   "read_only": 1
+   "read_only": 1,
+   "depends_on": "eval:![\"Stock Mutation\", \"Stock Set\"].includes(doc.legacy_doctype)"
   },
   {
    "fieldname": "message_section",
@@ -147,7 +149,7 @@
  ],
  "in_create": 1,
  "links": [],
- "modified": "2026-09-22 00:00:00",
+ "modified": "2026-09-27 10:05:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Legacy Import Log",

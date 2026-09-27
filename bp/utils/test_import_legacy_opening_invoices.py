@@ -117,12 +117,17 @@ class IntegrationTestOpeningInvoices(IntegrationTestCase):
 	# -- invoice controls -----------------------------------------------------
 
 	def test_controls_are_enforced_unless_switched_off(self):
-		"""An unset switch must not silently disable a financial control."""
-		with patch(
-			"bp.overrides.sales_invoice.frappe.db.get_single_value", return_value=None
-		):
+		"""An unset switch must not silently disable a financial control.
+
+		enforced() reads the raw tabSingles row (b90e8af): get_single_value()
+		casts a never-saved Check to 0, which would switch a new control off.
+		"""
+		raw = "bp.overrides.sales_invoice.frappe.db.sql"
+		with patch(raw, return_value=()):
 			self.assertTrue(enforced("enforce_credit_limit"))
-		with patch("bp.overrides.sales_invoice.frappe.db.get_single_value", return_value=0):
+		with patch(raw, return_value=((None,),)):
+			self.assertTrue(enforced("enforce_credit_limit"))
+		with patch(raw, return_value=(("0",),)):
 			self.assertFalse(enforced("enforce_credit_limit"))
-		with patch("bp.overrides.sales_invoice.frappe.db.get_single_value", return_value=1):
+		with patch(raw, return_value=(("1",),)):
 			self.assertTrue(enforced("enforce_active_invoice_limit"))

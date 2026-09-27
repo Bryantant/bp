@@ -10,6 +10,8 @@ frappe.listview_settings["Legacy Import"] = {
 			Running: "orange",
 			Completed: "green",
 			"Completed with Errors": "red",
+			Reverted: "gray",
+			"Reverted with Errors": "red",
 			Failed: "red",
 		};
 		return [__(doc.status), colors[doc.status] || "gray", "status,=," + doc.status];

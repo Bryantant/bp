@@ -32,9 +32,9 @@ def sales_line(**kw):
 	return line
 
 
-def legacy_doc(doctype=SALES_INVOICE, status=2, updated_at=datetime(2026, 6, 24, 17, 0), **kw):
+def legacy_doc(kind=SALES_INVOICE, status=2, updated_at=datetime(2026, 6, 24, 17, 0), **kw):
 	doc = {
-		"doctype": doctype,
+		"kind": kind,
 		"legacy_no": "F26060001",
 		"date": datetime(2026, 6, 24).date(),
 		"party": "C0001",

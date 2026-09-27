@@ -22,6 +22,7 @@ frappe.ui.form.on("Legacy Import", {
 	refresh(frm) {
 		if (frm.is_new()) return;
 		const busy = ["Queued", "Running"].includes(frm.doc.status);
+		render_kind_summary(frm);
 
 		if (busy) {
 			frm.dashboard.set_headline(
@@ -62,7 +63,7 @@ frappe.ui.form.on("Legacy Import", {
 				frappe.warn(
 					__("Cancel {0} document(s) created by this batch?", [frm.doc.created_count]),
 					__(
-						"Every Sales Invoice and Purchase Invoice this batch created is cancelled in ERP, which reverses its stock and ledger entries. Documents that cannot be cancelled (already paid, stock already used) are left as they are, with the reason on their log row.<br><br>The documents in the old system are not touched, so running this batch again would import them once more."
+						"Every document this batch created is cancelled in ERP -- receipts and payments first, then returns and invoices, then stock mutations and receivings -- which reverses their stock and ledger entries. Documents that cannot be cancelled (already paid, stock already used) are left as they are, with the reason on their log row.<br><br>The documents in the old system are not touched, so running this batch again would import them once more."
 					),
 					() =>
 						frappe.call({
@@ -89,3 +90,64 @@ frappe.ui.form.on("Legacy Import", {
 		frm.add_custom_button(__("Cancelled in Old System"), () => view_log("Cancelled in Legacy"), __("View Log"));
 	},
 });
+
+// Counts and amounts per document type. Amounts are only shown within one
+// type: an invoice total and a receipt total mean different things, so the
+// form never adds them together.
+function render_kind_summary(frm) {
+	const field = frm.get_field("kind_summary");
+	if (!field) return;
+	frappe.call({
+		method: LEGACY_IMPORT_METHOD + "kind_summary",
+		args: { name: frm.doc.name },
+		callback(r) {
+			const summary = r.message || {};
+			const kinds = Object.keys(summary);
+			if (!kinds.length) {
+				field.$wrapper.html(
+					`<p class="text-muted">${__("Run Preview to see what each document type will bring in.")}</p>`
+				);
+				return;
+			}
+			const money = (v) => (v === null || v === undefined ? "" : format_currency(v));
+			const num = (v) => (v ? v : "<span class='text-muted'>0</span>");
+			const rows = kinds
+				.map((kind) => {
+					const s = summary[kind];
+					return `<tr>
+						<td>${__(kind)}</td>
+						<td class="text-right">${num(s.found)}</td>
+						<td class="text-right">${num(s.ready)}</td>
+						<td class="text-right">${num(s.created)}</td>
+						<td class="text-right">${num(s.already_imported)}</td>
+						<td class="text-right">${num(s.skipped)}</td>
+						<td class="text-right ${s.errors ? "text-danger" : ""}">${num(s.errors)}</td>
+						<td class="text-right">${num(s.changed + s.cancelled_in_legacy)}</td>
+						<td class="text-right">${money(s.legacy_amount)}</td>
+						<td class="text-right">${money(s.erp_amount)}</td>
+					</tr>`;
+				})
+				.join("");
+			field.$wrapper.html(`
+				<div style="overflow-x: auto">
+				<table class="table table-bordered table-sm" style="font-size: var(--text-sm)">
+					<thead><tr>
+						<th>${__("Document Type")}</th>
+						<th class="text-right">${__("Found")}</th>
+						<th class="text-right">${__("Ready")}</th>
+						<th class="text-right">${__("Created")}</th>
+						<th class="text-right">${__("Already In")}</th>
+						<th class="text-right">${__("Skipped")}</th>
+						<th class="text-right">${__("Errors")}</th>
+						<th class="text-right">${__("To Decide")}</th>
+						<th class="text-right">${__("Old System Amount")}</th>
+						<th class="text-right">${__("ERP Amount")}</th>
+					</tr></thead>
+					<tbody>${rows}</tbody>
+				</table>
+				</div>
+				<p class="text-muted small">${__("Stock mutations and sets move goods, not money, so they have no amount. \"To Decide\" is changed or cancelled in the old system after import: decide per row in the Log.")}</p>
+			`);
+		},
+	});
+}

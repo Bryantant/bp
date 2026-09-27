@@ -75,6 +75,7 @@ def build_purchase_invoice(legacy_doc, ctx):
 			"ignore_pricing_rule": 1,
 			"disable_rounded_total": 1,
 			"remarks": (h["RecDOrNt"] or "").strip() or None,
+			"custom_legacy_type": legacy_doc["kind"],
 			"custom_legacy_no": legacy_doc["legacy_no"],
 			"custom_legacy_created_by": legacy_doc["created_by"],
 			"custom_legacy_updated_at": legacy_doc["updated_at"],

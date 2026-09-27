@@ -1,0 +1,43 @@
+{
+ "actions": [],
+ "creation": "2026-09-26 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "legacy_method",
+  "account"
+ ],
+ "fields": [
+  {
+   "description": "Exactly as the old system writes it in a receipt or payment line (methodtabldt MetDesc), e.g. Bank Maybank 1.5M - IDR.",
+   "fieldname": "legacy_method",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Old System Payment Method",
+   "reqd": 1
+  },
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Account",
+   "options": "Account",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-26 00:00:00",
+ "modified_by": "Administrator",
+ "module": "BP",
+ "name": "BP Legacy Payment Method Map",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

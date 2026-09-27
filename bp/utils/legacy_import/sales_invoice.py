@@ -96,6 +96,7 @@ def build_sales_invoice(legacy_doc, ctx):
 			"po_no": (h["CustPONo"] or "").strip() or None,
 			"custom_order_by": (h["OrderByx"] or "").strip() or None,
 			"remarks": (h["DONotesx"] or "").strip() or None,
+			"custom_legacy_type": legacy_doc["kind"],
 			"custom_legacy_no": legacy_doc["legacy_no"],
 			"custom_legacy_created_by": legacy_doc["created_by"],
 			"custom_legacy_updated_at": legacy_doc["updated_at"],

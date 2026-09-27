@@ -12,13 +12,21 @@
   "to_date",
   "column_break_scope",
   "import_purchase_invoice",
+  "import_stock_mutation",
+  "import_stock_set",
+  "column_break_scope_2",
   "import_sales_invoice",
+  "import_sales_return",
+  "import_ar_receipt",
+  "import_ap_payment",
   "column_break_status",
   "status",
   "run_by",
   "started_at",
   "finished_at",
   "summary_section",
+  "kind_summary",
+  "totals_section",
   "found_count",
   "ready_count",
   "created_count",
@@ -45,7 +53,7 @@
   {
    "fieldname": "guide_html",
    "fieldtype": "HTML",
-   "options": "<div class=\"bp-legacy-import-guide\" style=\"line-height:1.7\">\n<p><b>Apa ini?</b> Selama masa peralihan, transaksi tetap diinput di sistem lama.\nMenu ini menarik dokumen yang <b>sudah di-Confirm</b> di sistem lama ke ERP: Receiving menjadi\nPurchase Invoice, dan Delivery Order menjadi Sales Invoice. Dokumen dibuat langsung Submit,\nsehingga stok dan pembukuan ERP ikut terbentuk.</p>\n\n<p><b>Langkah pemakaian (rutin setiap akhir hari)</b></p>\n<ol>\n<li>Isi <b>From Date</b> dan <b>To Date</b>. Untuk pemakaian harian, keduanya diisi tanggal hari ini.</li>\n<li>Centang jenis dokumen yang ingin ditarik (Purchase Invoice / Sales Invoice), lalu <b>Save</b>.</li>\n<li>Klik <b>Preview</b>. Belum ada dokumen yang dibuat &mdash; ini hanya membaca sistem lama dan\nmenampilkan rencananya di ringkasan serta di Log.</li>\n<li>Periksa ringkasan. Kalau jumlah <b>Ready to Import</b> sudah masuk akal dan <b>Errors</b> sudah\nditangani, klik <b>Run Import</b>.</li>\n<li>Proses berjalan di latar belakang dan halaman ini memperbarui dirinya sendiri saat selesai.\nSetelah itu buka <b>View Log</b> untuk melihat hasil per dokumen.</li>\n</ol>\n\n<p><b>Arti status di Log</b></p>\n<ul>\n<li><b>Ready</b> &mdash; siap dibuat, menunggu Run Import.</li>\n<li><b>Created</b> &mdash; sudah dibuat dan di-Submit di ERP.</li>\n<li><b>Already Imported</b> &mdash; sudah pernah ditarik sebelumnya, tidak dibuat dua kali.</li>\n<li><b>Skipped</b> &mdash; di sistem lama masih Draft atau sudah Cancel, jadi sengaja tidak ditarik.</li>\n<li><b>Changed in Legacy</b> &mdash; dokumen diubah di sistem lama <i>setelah</i> ditarik ke ERP.\nSistem hanya menandai, tidak mengubah sendiri. Buka baris Log-nya lalu pilih\n<b>Re-sync from Old System</b> (batalkan dokumen ERP dan buat ulang sesuai data terbaru),\n<b>Cancel in ERP</b>, atau <b>Ignore</b>.</li>\n<li><b>Cancelled in Legacy</b> &mdash; dokumen di sistem lama sudah di-Reverse, di-Cancel, atau dihapus,\npadahal di ERP masih ada. Tindakannya sama: Cancel in ERP atau Ignore.</li>\n<li><b>Error</b> &mdash; dokumen gagal dibuat. Alasannya tertulis di kolom Message.</li>\n</ul>\n\n<p><b>Kalau ada Error</b> &mdash; penyebab yang paling sering: customer, supplier, item, atau salesman\nbelum ada di ERP; gudang di sistem lama belum dipetakan di <b>BP Settings</b>; stok tidak mencukupi;\natau total ERP tidak sama dengan total di sistem lama. Perbaiki dulu penyebabnya, lalu klik\n<b>Run Again (retry errors)</b> pada batch yang sama. Dokumen yang sudah berhasil tidak akan dibuat ulang.</p>\n\n<p><b>Membatalkan hasil import</b></p>\n<ul>\n<li><b>Satu dokumen</b> &mdash; buka barisnya di Log, klik <b>Cancel in ERP</b>. Dokumen ERP dibatalkan\ndan stok serta jurnalnya ikut dibalik.</li>\n<li><b>Satu batch penuh</b> &mdash; klik <b>Revert Batch</b> di halaman ini. Semua dokumen yang dibuat\nbatch ini dibatalkan, Sales Invoice lebih dulu baru Purchase Invoice supaya stok tidak minus di tengah\njalan. Dokumen yang tidak bisa dibatalkan &mdash; misalnya sudah ada pembayaran atau stoknya sudah\nterpakai &mdash; dibiarkan apa adanya dan alasannya tertulis di baris Log-nya.</li>\n<li><b>Perhatian:</b> dokumen di sistem lama tidak ikut dibatalkan. Jadi kalau batch yang sama\ndijalankan lagi, dokumen itu akan ditarik ulang dan dibuat dengan nomor ERP baru.</li>\n</ul>\n\n<p><b>Yang perlu diketahui</b></p>\n<ul>\n<li>Menjalankan ulang batch yang sama aman &mdash; tidak akan ada dokumen dobel.</li>\n<li>Menu ini <b>tidak membuat data master</b>. Customer, supplier, item, dan salesman baru\ndisiapkan terlebih dahulu di luar menu ini.</li>\n<li>Nomor dokumen ERP memakai penomoran ERP, sedangkan nomor dari sistem lama tersimpan di\nkolom <b>Old System No</b> pada Sales Invoice / Purchase Invoice dan bisa dicari dari daftar.</li>\n<li>Satu batch maksimal 31 hari, dan hanya satu batch yang boleh berjalan dalam satu waktu.</li>\n<li>Saat operasional sudah sepenuhnya pindah ke ERP, matikan <b>Legacy Import Enabled</b> di\nBP Settings agar tidak ada lagi data yang ditarik dari sistem lama.</li>\n</ul>\n</div>"
+   "options": "<div class=\"bp-legacy-import-guide\" style=\"line-height:1.7\">\n<p><b>Apa ini?</b> Selama masa peralihan, transaksi tetap diinput di sistem lama.\nMenu ini menarik transaksi dari sistem lama ke ERP dan langsung men-Submit-nya, sehingga stok,\npiutang, hutang, dan pembukuan ERP ikut terbentuk.</p>\n\n<p><b>Yang ditarik (bisa dipilih lewat centang)</b></p>\n<ul>\n<li><b>Purchase Invoice</b> &mdash; Receiving yang sudah Confirm.</li>\n<li><b>Stock Mutation</b> &mdash; mutasi stok yang sudah Confirm: barang masuk, barang keluar, atau pindah gudang.</li>\n<li><b>Stock Set / Assembly</b> &mdash; perakitan set: komponen keluar, barang jadi masuk di gudang yang sama.</li>\n<li><b>Sales Invoice</b> &mdash; Delivery Order yang sudah Confirm.</li>\n<li><b>Sales Return</b> &mdash; retur penjualan yang sudah Confirm. Barang kembali ke gudang yang dipilih di sistem lama,\ndan piutang customer langsung berkurang.</li>\n<li><b>AR Receipt</b> &mdash; kuitansi penerimaan dari customer, menjadi Journal Entry yang melunasi faktur-fakturnya.\nBaris \"Retur Penjualan\" dikaitkan ke retur yang sudah ditarik, sehingga tidak mengurangi piutang dua kali.</li>\n<li><b>AP Payment</b> &mdash; pembayaran ke supplier, menjadi Journal Entry yang melunasi tagihannya.</li>\n</ul>\n<p>Urutan prosesnya otomatis: barang masuk lebih dulu, lalu penjualan dan retur, baru pembayaran &mdash;\nkarena pembayaran butuh fakturnya sudah ada.</p>\n\n<p><b>Langkah pemakaian (rutin setiap akhir hari)</b></p>\n<ol>\n<li>Isi <b>From Date</b> dan <b>To Date</b>. Untuk pemakaian harian, keduanya diisi tanggal hari ini.</li>\n<li>Centang jenis dokumen yang ingin ditarik (Purchase Invoice / Sales Invoice), lalu <b>Save</b>.</li>\n<li>Klik <b>Preview</b>. Belum ada dokumen yang dibuat &mdash; ini hanya membaca sistem lama dan\nmenampilkan rencananya di ringkasan serta di Log.</li>\n<li>Periksa ringkasan. Kalau jumlah <b>Ready to Import</b> sudah masuk akal dan <b>Errors</b> sudah\nditangani, klik <b>Run Import</b>.</li>\n<li>Proses berjalan di latar belakang dan halaman ini memperbarui dirinya sendiri saat selesai.\nSetelah itu buka <b>View Log</b> untuk melihat hasil per dokumen.</li>\n</ol>\n\n<p><b>Arti status di Log</b></p>\n<ul>\n<li><b>Ready</b> &mdash; siap dibuat, menunggu Run Import.</li>\n<li><b>Created</b> &mdash; sudah dibuat dan di-Submit di ERP.</li>\n<li><b>Already Imported</b> &mdash; sudah pernah ditarik sebelumnya, tidak dibuat dua kali.</li>\n<li><b>Skipped</b> &mdash; di sistem lama masih Draft atau sudah Cancel, jadi sengaja tidak ditarik.</li>\n<li><b>Changed in Legacy</b> &mdash; dokumen diubah di sistem lama <i>setelah</i> ditarik ke ERP.\nSistem hanya menandai, tidak mengubah sendiri. Buka baris Log-nya lalu pilih\n<b>Re-sync from Old System</b> (batalkan dokumen ERP dan buat ulang sesuai data terbaru),\n<b>Cancel in ERP</b>, atau <b>Ignore</b>.</li>\n<li><b>Cancelled in Legacy</b> &mdash; dokumen di sistem lama sudah di-Reverse, di-Cancel, atau dihapus,\npadahal di ERP masih ada. Tindakannya sama: Cancel in ERP atau Ignore.</li>\n<li><b>Error</b> &mdash; dokumen gagal dibuat. Alasannya tertulis di kolom Message.</li>\n</ul>\n\n<p><b>Kalau ada Error</b> &mdash; penyebab yang paling sering: customer, supplier, item, atau salesman\nbelum ada di ERP; gudang di sistem lama belum dipetakan di <b>BP Settings</b>; stok tidak mencukupi;\ntotal ERP tidak sama dengan total di sistem lama; metode bayar belum punya akun di ERP (petakan di <b>BP Settings</b>); atau faktur yang dibayar belum ada di ERP. Perbaiki dulu penyebabnya, lalu klik\n<b>Run Again (retry errors)</b> pada batch yang sama. Dokumen yang sudah berhasil tidak akan dibuat ulang.</p>\n\n<p><b>Membatalkan hasil import</b></p>\n<ul>\n<li><b>Satu dokumen</b> &mdash; buka barisnya di Log, klik <b>Cancel in ERP</b>. Dokumen ERP dibatalkan\ndan stok serta jurnalnya ikut dibalik.</li>\n<li><b>Satu batch penuh</b> &mdash; klik <b>Revert Batch</b> di halaman ini. Semua dokumen yang dibuat\nbatch ini dibatalkan, Sales Invoice lebih dulu baru Purchase Invoice supaya stok tidak minus di tengah\njalan. Dokumen yang tidak bisa dibatalkan &mdash; misalnya sudah ada pembayaran atau stoknya sudah\nterpakai &mdash; dibiarkan apa adanya dan alasannya tertulis di baris Log-nya.</li>\n<li><b>Perhatian:</b> dokumen di sistem lama tidak ikut dibatalkan. Jadi kalau batch yang sama\ndijalankan lagi, dokumen itu akan ditarik ulang dan dibuat dengan nomor ERP baru.</li>\n</ul>\n\n<p><b>Yang perlu diketahui</b></p>\n<ul>\n<li>Menjalankan ulang batch yang sama aman &mdash; tidak akan ada dokumen dobel.</li>\n<li>Menu ini <b>tidak membuat data master</b>. Customer, supplier, item, dan salesman baru\ndisiapkan terlebih dahulu di luar menu ini.</li>\n<li>Nomor dokumen ERP memakai penomoran ERP, sedangkan nomor dari sistem lama tersimpan di\nkolom <b>Old System No</b> pada Sales Invoice / Purchase Invoice dan bisa dicari dari daftar.</li>\n<li>Satu batch maksimal 31 hari, dan hanya satu batch yang boleh berjalan dalam satu waktu.</li>\n<li>Saat operasional sudah sepenuhnya pindah ke ERP, matikan <b>Legacy Import Enabled</b> di\nBP Settings agar tidak ada lagi data yang ditarik dari sistem lama.</li>\n</ul>\n</div>"
   },
   {
    "fieldname": "scope_section",
@@ -84,6 +92,45 @@
    "fieldname": "import_sales_invoice",
    "fieldtype": "Check",
    "label": "Sales Invoice"
+  },
+  {
+   "fieldname": "column_break_scope_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Old-system stock mutation (goods in / out / transfer, confirmed) becomes a submitted Stock Entry.",
+   "fieldname": "import_stock_mutation",
+   "fieldtype": "Check",
+   "label": "Stock Mutation"
+  },
+  {
+   "default": "1",
+   "description": "Old-system set assembly (confirmed) becomes a submitted Repack Stock Entry.",
+   "fieldname": "import_stock_set",
+   "fieldtype": "Check",
+   "label": "Stock Set / Assembly"
+  },
+  {
+   "default": "1",
+   "description": "Old-system sales return (confirmed) becomes a submitted Sales Invoice return that puts the goods back in stock.",
+   "fieldname": "import_sales_return",
+   "fieldtype": "Check",
+   "label": "Sales Return"
+  },
+  {
+   "default": "1",
+   "description": "Old-system customer receipt becomes a submitted Journal Entry settling the invoices it paid.",
+   "fieldname": "import_ar_receipt",
+   "fieldtype": "Check",
+   "label": "AR Receipt"
+  },
+  {
+   "default": "1",
+   "description": "Old-system supplier payment becomes a submitted Journal Entry settling the bills it paid.",
+   "fieldname": "import_ap_payment",
+   "fieldtype": "Check",
+   "label": "AP Payment"
   },
   {
    "fieldname": "column_break_status",
@@ -126,6 +173,17 @@
    "fieldname": "summary_section",
    "fieldtype": "Section Break",
    "label": "Summary"
+  },
+  {
+   "fieldname": "kind_summary",
+   "fieldtype": "HTML",
+   "label": "Per Document Type"
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals (all document types)",
+   "collapsible": 1
   },
   {
    "fieldname": "found_count",
@@ -200,14 +258,16 @@
    "fieldtype": "Currency",
    "label": "Old System Total (confirmed)",
    "no_copy": 1,
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "fieldname": "total_erp_amount",
    "fieldtype": "Currency",
    "label": "ERP Total (submitted)",
    "no_copy": 1,
-   "read_only": 1
+   "read_only": 1,
+   "hidden": 1
   },
   {
    "collapsible": 1,
@@ -230,7 +290,7 @@
    "link_fieldname": "legacy_import"
   }
  ],
- "modified": "2026-09-23 00:00:00",
+ "modified": "2026-09-27 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Legacy Import",

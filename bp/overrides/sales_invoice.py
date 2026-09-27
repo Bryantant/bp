@@ -4,6 +4,7 @@ from frappe import _
 from frappe.utils import cint, now_datetime
 
 from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
+from bp.patches.v1_0.add_sales_return_naming_series import RETURN_SERIES
 from bp.utils.cascading_discount import calculate_cascading_discount
 
 
@@ -86,7 +87,14 @@ def before_naming(doc, method=None):
 	# warehouse is only mandatory while Update Stock is on, so "no warehouse"
 	# can also mean a goods invoice that is simply not filled in yet, and that
 	# one should keep the warehouse series and fail validation as usual.
-	doc.naming_series = WAREHOUSE_SERIES if doc.update_stock else NON_STOCK_SERIES
+	if not doc.update_stock:
+		doc.naming_series = NON_STOCK_SERIES
+	elif doc.is_return:
+		# Same warehouse code with an R in front and its own counter, so a
+		# return can be told apart from a sale by its name (RA26090001).
+		doc.naming_series = RETURN_SERIES
+	else:
+		doc.naming_series = WAREHOUSE_SERIES
 
 
 def validate(doc, method=None):

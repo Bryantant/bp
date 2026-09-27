@@ -23,7 +23,9 @@ class LegacyImport(Document):
 			frappe.throw(_("To Date cannot be in the future."))
 		if date_diff(self.to_date, self.from_date) >= MAX_RANGE_DAYS:
 			frappe.throw(_("A batch can cover at most {0} days.").format(MAX_RANGE_DAYS))
-		if not (self.import_sales_invoice or self.import_purchase_invoice):
+		from bp.utils.legacy_import.kinds import selected_kinds
+
+		if not selected_kinds(self):
 			frappe.throw(_("Select at least one document type to import."))
 		if not self.is_new() and self.status in ("Queued", "Running"):
 			frappe.throw(_("Cannot change a batch while it is running."))
@@ -59,6 +61,15 @@ def run_import(name):
 	from bp.utils.legacy_import.runner import enqueue_run
 
 	enqueue_run(_get_batch(name))
+
+
+@frappe.whitelist()
+def kind_summary(name):
+	"""Per document type counts and amounts, for the form's summary table."""
+	from bp.utils.legacy_import.runner import kind_summary as summarise
+
+	frappe.get_doc("Legacy Import", name).check_permission("read")
+	return summarise(name)
 
 
 @frappe.whitelist()
