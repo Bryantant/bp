@@ -69,7 +69,6 @@ def build_purchase_invoice(legacy_doc, ctx):
 			"ignore_default_payment_terms_template": 1,
 			"bill_no": (h["SuppDONo"] or "").strip() or None,
 			"bill_date": posting_date,
-			"custom_invoice_type": "Cash" if is_cash else "Credit",
 			"set_warehouse": warehouse,
 			"update_stock": 1,
 			"ignore_pricing_rule": 1,

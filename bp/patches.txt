@@ -40,3 +40,7 @@ bp.patches.v1_0.add_sales_return_naming_series
 bp.patches.v1_0.match_legacy_purchase_invoice_rules
 bp.patches.v1_0.enable_ctn_uom
 bp.patches.v1_0.grant_landed_cost_voucher_to_accounts
+bp.patches.v1_0.name_invoices_and_returns_by_warehouse
+bp.patches.v1_0.remove_purchase_invoice_invoice_type_field
+bp.patches.v1_0.follow_standard_sales_invoice_warehouse
+bp.patches.v1_0.split_cascading_discount_into_four_steps

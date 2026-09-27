@@ -3,12 +3,11 @@ Order Item.
 
 Discount 1 is the supplier-side/claimable discount (a rebate the company can
 later claim back from the item's supplier); Discount 2 is the internal
-company-policy discount. Both are entered as Percentage OR Amount (kept in
-sync like core's discount_percentage/discount_amount pair -- see
-bp.overrides.sales_invoice.recalculate_cascading_discount and
-bp.overrides.sales_order.recalculate_cascading_discount, wired via the
-"before_validate" doc_event) and compound: Discount 2 is applied on top of
-the price *after* Discount 1, not on price_list_rate directly. The native
+company-policy discount. The four fields are four separate steps, each
+applied to the price left by the one before it: Discount 1 %, Discount 1
+Amount, Discount 2 %, Discount 2 Amount (bp.utils.cascading_discount, wired
+via the "before_validate" doc_event). A percentage and the amount next to it
+are not one discount typed two ways. The native
 rate/discount_percentage/discount_amount fields are recomputed from these as
 the effective combined discount -- bp/templates/print_formats/
 sales_invoice.html still renders discount_percentage/discount_amount as-is.
@@ -40,7 +39,7 @@ DISCOUNT_FIELDS = [
 		"fieldtype": "Percent",
 		"label": "Discount 1 %",
 		"insert_after": "discount_amount",
-		"description": "Supplier-side / claimable discount, applied to Price List Rate.",
+		"description": "Step 1: percentage off the Price List Rate.",
 	},
 	{
 		"fieldname": "custom_discount1_amount",
@@ -48,14 +47,14 @@ DISCOUNT_FIELDS = [
 		"label": "Discount 1 Amount",
 		"insert_after": "custom_discount1_percentage",
 		"options": "currency",
-		"description": "Supplier-side / claimable discount, applied to Price List Rate.",
+		"description": "Step 2: amount per unit off the price after Discount 1 %.",
 	},
 	{
 		"fieldname": "custom_discount2_percentage",
 		"fieldtype": "Percent",
 		"label": "Discount 2 %",
 		"insert_after": "custom_discount1_amount",
-		"description": "Internal company-policy discount, applied after Discount 1.",
+		"description": "Step 3: percentage off the price after Discount 1.",
 	},
 	{
 		"fieldname": "custom_discount2_amount",
@@ -63,7 +62,7 @@ DISCOUNT_FIELDS = [
 		"label": "Discount 2 Amount",
 		"insert_after": "custom_discount2_percentage",
 		"options": "currency",
-		"description": "Internal company-policy discount, applied after Discount 1.",
+		"description": "Step 4: amount per unit off the price after Discount 2 %.",
 	},
 ]
 

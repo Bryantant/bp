@@ -176,6 +176,9 @@ doc_events = {
 		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",
 		"before_print": "bp.overrides.sales_invoice.before_print",
 	},
+	"Purchase Invoice": {
+		"before_naming": "bp.overrides.purchase_invoice.before_naming",
+	},
 	"Sales Order": {
 		"before_validate": "bp.overrides.sales_order.recalculate_cascading_discount",
 	},
@@ -199,8 +202,8 @@ override_doctype_class = {
 }
 
 naming_series_variables = {
-	"invoice_type_code": ["bp.overrides.purchase_invoice.get_invoice_type_code"],
 	"warehouse_name_code": ["bp.overrides.sales_invoice.get_warehouse_name_code"],
+	"purchase_warehouse_code": ["bp.overrides.purchase_invoice.get_purchase_warehouse_code"],
 }
 
 # Scheduled Tasks

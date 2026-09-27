@@ -11,9 +11,12 @@ Discounts (Form_FmDeliOrdeDt.txt):
 	Discamnt3 = manual amount per line
 	line net  = Qty * Price - DiscAmnt - DiscAmnt2 - Discamnt3
 	DO net    = sum(line net) - ndisc1                        (header amount)
-Tiers 1 and 2 are exactly ERP's cascading Discount 1 / Discount 2
-(bp.utils.cascading_discount), recomputed by the Sales Invoice
-before_validate hook. The manual per-line amount and the header discount
+DiscPerc and DiscPerc2 are what the user typed; they go to Discount 1 % and
+Discount 2 %, which compound the same way (bp.utils.cascading_discount,
+recomputed by the Sales Invoice before_validate hook). DiscAmnt and DiscAmnt2
+are only those percentages in money, so they are not carried over: Discount 1
+Amount and Discount 2 Amount are separate steps of their own and would take
+the discount a second time. The manual per-line amount and the header discount
 have no line-level equivalent, so they go to the invoice's header
 Additional Discount.
 """
@@ -115,9 +118,7 @@ def build_sales_invoice(legacy_doc, ctx):
 			"warehouse": ctx.warehouse(line.get("BranchCode")) or warehouse,
 			"price_list_rate": flt(line["Price"]),
 			"custom_discount1_percentage": flt(line["DiscPerc"]),
-			"custom_discount1_amount": flt(line["DiscAmnt"]) / qty,
 			"custom_discount2_percentage": flt(line["DiscPerc2"]),
-			"custom_discount2_amount": flt(line["DiscAmnt2"]) / qty,
 		}
 		if (line.get("DescTamb") or "").strip():
 			row["description"] = f"{ctx.item_name(item_code)}\n{line['DescTamb'].strip()}"

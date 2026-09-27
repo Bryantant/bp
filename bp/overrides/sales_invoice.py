@@ -4,8 +4,8 @@ from frappe import _
 from frappe.utils import cint, now_datetime
 
 from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
-from bp.patches.v1_0.add_sales_return_naming_series import RETURN_SERIES
-from bp.utils.cascading_discount import calculate_cascading_discount
+from bp.patches.v1_0.name_invoices_and_returns_by_warehouse import SALES_RETURN_SERIES
+from bp.utils.cascading_discount import recalculate_cascading_discount as _recalculate_cascading_discount
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +53,24 @@ def enforced(setting):
 # ---------------------------------------------------------------------------
 
 
+def _warehouse(doc):
+	"""Source Warehouse, or the first item's warehouse when the header is empty.
+
+	Source Warehouse on the header is optional, as in standard ERPNext: the
+	item rows carry the warehouse stock actually moves from. A return made with
+	Create > Return / Credit Note always arrives with an empty header, because
+	erpnext.controllers.sales_and_purchase_return blanks set_warehouse on purpose.
+	"""
+	if doc.get("set_warehouse"):
+		return doc.set_warehouse
+	for item in doc.get("items") or []:
+		if item.get("warehouse"):
+			return item.warehouse
+	return None
+
+
 def get_warehouse_name_code(doc, token=None):
-	warehouse = doc.get("set_warehouse")
+	warehouse = _warehouse(doc)
 	if not warehouse:
 		return ""
 	return frappe.db.get_value("Warehouse", warehouse, "warehouse_name") or ""
@@ -72,7 +88,7 @@ def before_naming(doc, method=None):
 	Runs on insert only, before the name is generated, and only matters when
 	the user has not picked a series by hand.
 	"""
-	if doc.naming_series and doc.naming_series != WAREHOUSE_SERIES:
+	if doc.naming_series and doc.naming_series not in (WAREHOUSE_SERIES, SALES_RETURN_SERIES):
 		# Somebody picked a series deliberately (API, Data Import, an amended
 		# document): leave it. Only the default, which Frappe fills in from the
 		# first option, is ours to change.
@@ -83,23 +99,20 @@ def before_naming(doc, method=None):
 		# series is never used -- say so rather than set a misleading one.
 		return
 
-	# Update Stock is the deciding flag, not an empty Source Warehouse: the
-	# warehouse is only mandatory while Update Stock is on, so "no warehouse"
-	# can also mean a goods invoice that is simply not filled in yet, and that
-	# one should keep the warehouse series and fail validation as usual.
+	# Update Stock is the deciding flag, not an empty Source Warehouse: a goods
+	# invoice may leave the header empty and carry the warehouse on its rows
+	# (get_warehouse_name_code reads it from there).
 	if not doc.update_stock:
 		doc.naming_series = NON_STOCK_SERIES
 	elif doc.is_return:
-		# Same warehouse code with an R in front and its own counter, so a
-		# return can be told apart from a sale by its name (RA26090001).
-		doc.naming_series = RETURN_SERIES
+		# Same warehouse code with SR in front and its own counter, so a
+		# return can be told apart from a sale by its name (SRA26090001).
+		doc.naming_series = SALES_RETURN_SERIES
 	else:
 		doc.naming_series = WAREHOUSE_SERIES
 
 
 def validate(doc, method=None):
-	require_warehouse_when_stock_moves(doc)
-
 	if not doc.bp_sales_person and doc.is_opening == "Yes":
 		# An opening balance carries no salesperson of its own; use the
 		# customer's, and accept none rather than blocking the import.
@@ -117,33 +130,14 @@ def validate(doc, method=None):
 	row.allocated_percentage = 100
 
 
-def require_warehouse_when_stock_moves(doc):
-	"""Source Warehouse is mandatory for any invoice that moves stock.
-
-	The Property Setter (bp.patches.v1_0.allow_non_stock_sales_invoices) makes
-	the field conditionally mandatory so a value-only invoice -- an AR debit
-	note for a principal's claim -- can be saved without one. But Frappe
-	enforces `mandatory_depends_on` in the browser only: a server-side insert
-	(Legacy Import, the REST API, Data Import) would otherwise slip through
-	with no warehouse and a naming series that resolves to nothing. This keeps
-	the rule where it has to hold.
-	"""
-	if doc.update_stock and not doc.set_warehouse:
-		frappe.throw(
-			_("Source Warehouse is required when the invoice updates stock."),
-			title=_("Missing Source Warehouse"),
-		)
-
-
 # ---------------------------------------------------------------------------
-# Two-tier cascading discount (Discount 1 = supplier/claimable, Discount 2 =
-# internal policy)
+# Four-step cascading discount (Discount 1 %, Discount 1 Amount, Discount 2 %,
+# Discount 2 Amount; see bp.utils.cascading_discount)
 #
 # Authoritative server-side recompute: bp/public/js/sales_invoice.js keeps
-# the same math in sync live in the browser, but this runs unconditionally on
-# every save so REST/data-importer saves that skip the browser still end up
-# with a correct rate -- same rationale as the sales_team rebuild in
-# validate() above.
+# the same math in sync live in the browser, but this runs on every save so
+# REST/data-importer saves that skip the browser still end up with a correct
+# rate -- same rationale as the sales_team rebuild in validate() above.
 #
 # Wired via "before_validate" (not "validate") in hooks.py so the final rate
 # is in place before core's own validate() -> calculate_taxes_and_totals()
@@ -152,29 +146,7 @@ def require_warehouse_when_stock_moves(doc):
 
 
 def recalculate_cascading_discount(doc, method=None):
-	for item in doc.get("items", []):
-		if not item.get("price_list_rate"):
-			# No list price to cascade from (item has no Item Price / no price list
-			# match) -- leave whatever rate was entered untouched instead of
-			# zeroing it out.
-			continue
-		result = calculate_cascading_discount(
-			price_list_rate=item.get("price_list_rate"),
-			discount1_percentage=item.get("custom_discount1_percentage"),
-			discount1_amount=item.get("custom_discount1_amount"),
-			discount2_percentage=item.get("custom_discount2_percentage"),
-			discount2_amount=item.get("custom_discount2_amount"),
-			rate_precision=item.precision("rate"),
-			pct_precision=item.precision("custom_discount1_percentage"),
-			amt_precision=item.precision("custom_discount1_amount"),
-		)
-		item.custom_discount1_percentage = result["discount1_percentage"]
-		item.custom_discount1_amount = result["discount1_amount"]
-		item.custom_discount2_percentage = result["discount2_percentage"]
-		item.custom_discount2_amount = result["discount2_amount"]
-		item.rate = result["rate"]
-		item.discount_percentage = result["discount_percentage"]
-		item.discount_amount = result["discount_amount"]
+	_recalculate_cascading_discount(doc)
 
 
 # ---------------------------------------------------------------------------

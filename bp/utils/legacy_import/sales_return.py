@@ -104,10 +104,10 @@ def build_sales_return(legacy_doc, ctx):
 				"conversion_factor": flt(line["Packing"]) or 1,
 				"warehouse": warehouse,
 				"price_list_rate": flt(line["Price"]),
-				# One discount tier on a return; the cascading-discount hook
-				# (bp.overrides.sales_invoice) turns it into the rate.
+				# One discount on a return; the cascading-discount hook
+				# (bp.overrides.sales_invoice) turns it into the rate. DiscAmnt
+				# is only DiscPerc in money, so it is not carried over.
 				"custom_discount1_percentage": flt(line["DiscPerc"]),
-				"custom_discount1_amount": flt(line["DiscAmnt"]) / qty,
 			},
 		)
 		rate = incoming_rates.get(line["ItemCode"].strip())

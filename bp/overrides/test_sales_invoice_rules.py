@@ -1,7 +1,7 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from bp.overrides.sales_invoice import before_naming, require_warehouse_when_stock_moves
+from bp.overrides.sales_invoice import before_naming, get_warehouse_name_code
 from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
 
 
@@ -29,8 +29,8 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		self.assertEqual(doc.naming_series, WAREHOUSE_SERIES)
 
 	def test_update_stock_decides_not_the_empty_warehouse(self):
-		"""A goods invoice that is simply not filled in yet must keep the
-		warehouse series and fail validation, not be renamed."""
+		"""A goods invoice with an empty header warehouse keeps the warehouse
+		series; the code comes from its item rows."""
 		doc = invoice(set_warehouse=None)
 		before_naming(doc)
 		self.assertEqual(doc.naming_series, WAREHOUSE_SERIES)
@@ -46,13 +46,18 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		before_naming(doc)
 		self.assertEqual(doc.naming_series, WAREHOUSE_SERIES)
 
-	# -- warehouse rule -------------------------------------------------------
+	# -- warehouse code for the name ------------------------------------------
 
-	def test_stock_invoice_without_warehouse_is_refused(self):
-		"""mandatory_depends_on is a browser-only rule in Frappe, so the same
-		rule has to exist server-side for imports and the REST API."""
-		with self.assertRaises(frappe.ValidationError):
-			require_warehouse_when_stock_moves(invoice(set_warehouse=None))
+	def test_code_comes_from_the_header_warehouse(self):
+		wh = frappe.db.get_value("Warehouse", {"is_group": 0}, ["name", "warehouse_name"], as_dict=True)
+		self.assertEqual(get_warehouse_name_code(invoice(set_warehouse=wh.name, items=[])), wh.warehouse_name)
 
-	def test_value_only_invoice_needs_no_warehouse(self):
-		require_warehouse_when_stock_moves(invoice(update_stock=0, set_warehouse=None))
+	def test_code_falls_back_to_the_first_item_warehouse(self):
+		"""Create > Return / Credit Note blanks the header warehouse (standard
+		ERPNext); the return must still be named SR + warehouse letter."""
+		wh = frappe.db.get_value("Warehouse", {"is_group": 0}, ["name", "warehouse_name"], as_dict=True)
+		doc = invoice(set_warehouse=None, items=[frappe._dict(warehouse=None), frappe._dict(warehouse=wh.name)])
+		self.assertEqual(get_warehouse_name_code(doc), wh.warehouse_name)
+
+	def test_no_warehouse_anywhere_gives_no_code(self):
+		self.assertEqual(get_warehouse_name_code(invoice(set_warehouse=None, items=[])), "")

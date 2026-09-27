@@ -206,7 +206,8 @@ class IntegrationTestLegacyImportKinds(IntegrationTestCase):
 		item = si.items[0]
 		self.assertEqual(item.qty, -3)
 		self.assertEqual(item.custom_discount1_percentage, 10)
-		self.assertEqual(item.custom_discount1_amount, 10000)  # per unit
+		# DiscAmnt is DiscPerc in money; carrying it too would discount twice.
+		self.assertFalse(item.get("custom_discount1_amount"))
 
 	def test_return_expected_total_is_negative(self):
 		line = {**stock_line(qty=3, price=100000), "DiscPerc": 10, "DiscAmnt": 30000}
