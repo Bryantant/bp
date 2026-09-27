@@ -38,3 +38,4 @@ bp.patches.v1_0.grant_stock_user_read_stock_settings
 bp.patches.v1_0.add_legacy_import_fields_for_more_doctypes
 bp.patches.v1_0.add_sales_return_naming_series
 bp.patches.v1_0.match_legacy_purchase_invoice_rules
+bp.patches.v1_0.enable_ctn_uom
