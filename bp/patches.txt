@@ -44,3 +44,4 @@ bp.patches.v1_0.name_invoices_and_returns_by_warehouse
 bp.patches.v1_0.remove_purchase_invoice_invoice_type_field
 bp.patches.v1_0.follow_standard_sales_invoice_warehouse
 bp.patches.v1_0.split_cascading_discount_into_four_steps
+bp.patches.v1_0.seed_inquiry_purchase_roles

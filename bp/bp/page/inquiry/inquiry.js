@@ -5,7 +5,16 @@ frappe.pages['inquiry'].on_page_load = function (wrapper) {
 		single_column: true,
 	});
 
-	new bp.Inquiry(page);
+	wrapper.inquiry = new bp.Inquiry(page);
+};
+
+// A sidebar link can open a given tab: route_options {"tab": "sales"}.
+frappe.pages['inquiry'].on_page_show = function (wrapper) {
+	const tab = frappe.route_options && frappe.route_options.tab;
+	if (tab && wrapper.inquiry) {
+		frappe.route_options = null;
+		wrapper.inquiry.show_tab(tab);
+	}
 };
 
 bp = window.bp || {};
@@ -24,6 +33,31 @@ bp.Inquiry = class Inquiry {
 		this.make_filters();
 		this.make_tabs();
 		this.page.set_primary_action(__('Search'), () => this.run_active_tab(), 'search');
+		this.apply_context();
+	}
+
+	// Hide the Purchase tab for users not listed in BP Settings > Inquiry Purchase Roles.
+	apply_context() {
+		frappe.call({
+			method: 'bp.bp.page.inquiry.inquiry.get_context',
+			callback: (r) => {
+				if ((r.message || {}).show_purchase) return;
+				this.tabs = this.tabs.filter((t) => t.key !== 'purchase');
+				this.$tabs.find('.nav-link[data-tab="purchase"]').closest('.nav-item').remove();
+				if (this.active_tab === 'purchase') this.show_tab('balance');
+			},
+		});
+	}
+
+	show_tab(key) {
+		const $link = this.$tabs.find(`.nav-link[data-tab="${key}"]`);
+		// Tab not available for this user (Purchase hidden): stay where we are.
+		if (!$link.length) return;
+		this.$tabs.find('.nav-link').removeClass('active');
+		$link.addClass('active');
+		this.active_tab = key;
+		this.$detail.hide().empty();
+		this.$body.empty();
 	}
 
 	make_filters() {
@@ -77,6 +111,7 @@ bp.Inquiry = class Inquiry {
 		`);
 		$html.appendTo(this.page.main);
 
+		this.$tabs = $html.find('.nav-tabs');
 		this.$body = $html.find('.inquiry-body');
 		this.$detail = $html.find('.inquiry-detail');
 

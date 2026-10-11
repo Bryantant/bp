@@ -8,6 +8,8 @@
   "print_control_section",
   "enforce_print_once",
   "print_lock_reset_roles",
+  "inquiry_section",
+  "inquiry_purchase_roles",
   "invoice_control_section",
   "enforce_credit_limit",
   "enforce_active_invoice_limit",
@@ -46,6 +48,18 @@
    "fieldtype": "Table MultiSelect",
    "label": "Print Lock Reset Roles",
    "options": "BP Print Lock Reset Role"
+  },
+  {
+   "fieldname": "inquiry_section",
+   "fieldtype": "Section Break",
+   "label": "Inquiry"
+  },
+  {
+   "description": "Roles that see the Purchase tab (purchase prices and suppliers) on the Inquiry page. System Manager always sees it.",
+   "fieldname": "inquiry_purchase_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Inquiry Purchase Roles",
+   "options": "BP Inquiry Purchase Role"
   },
   {
    "fieldname": "invoice_control_section",
@@ -156,7 +170,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-26 00:00:00",
+ "modified": "2026-10-11 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",

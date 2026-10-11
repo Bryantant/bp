@@ -113,6 +113,31 @@ def _matching_item_codes(filters):
 
 
 # ---------------------------------------------------------------------------
+# Purchase tab access
+#
+# The Purchase tab shows purchase prices and suppliers. Who may see it is set
+# in BP Settings > Inquiry Purchase Roles (seeded by
+# bp.patches.v1_0.seed_inquiry_purchase_roles); System Manager always may.
+# ---------------------------------------------------------------------------
+def can_view_purchase(user=None):
+	roles = set(frappe.get_roles(user or frappe.session.user))
+	if "System Manager" in roles:
+		return True
+	allowed = frappe.get_all(
+		"BP Inquiry Purchase Role",
+		filters={"parent": "BP Settings", "parentfield": "inquiry_purchase_roles"},
+		pluck="role",
+	)
+	return bool(roles.intersection(allowed))
+
+
+@frappe.whitelist()
+def get_context():
+	"""What the page needs before it draws its tabs."""
+	return {"show_purchase": can_view_purchase()}
+
+
+# ---------------------------------------------------------------------------
 # Balance tab
 # ---------------------------------------------------------------------------
 @frappe.whitelist()
@@ -241,6 +266,9 @@ def get_sales(filters=None):
 # ---------------------------------------------------------------------------
 @frappe.whitelist()
 def get_purchase(filters=None):
+	if not can_view_purchase():
+		frappe.throw(_("You are not allowed to see purchase prices."), frappe.PermissionError)
+
 	filters = _parse_filters(filters)
 	from_date = filters.get("from_date") or add_months(nowdate(), -3)
 	to_date = filters.get("to_date") or nowdate()
