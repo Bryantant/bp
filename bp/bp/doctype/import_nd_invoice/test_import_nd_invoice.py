@@ -109,3 +109,46 @@ class TestImportNDInvoice(FrappeTestCase):
 		ImportNDInvoice.resolve_customers(doc)
 		self.assertRaises(frappe.ValidationError, ImportNDInvoice.create_sales_invoices, doc)
 		self.assertFalse(frappe.db.exists("Sales Invoice", {"custom_nd_invoice_no": f"TEST-{nd_code}"}))
+
+
+class TestImportNDInvoiceEndToEnd(FrappeTestCase):
+	"""HT-4: submit creates a Draft Sales Invoice that can itself be submitted.
+
+	Earlier this failed with "Source Warehouse is required" because the import
+	never sets set_warehouse; follow_standard_sales_invoice_warehouse made it
+	optional again. Run in a transaction that is rolled back afterwards.
+	"""
+
+	def test_submit_creates_draft_invoice_that_submits(self):
+		customer, nd_code = frappe.db.get_value(
+			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
+		)
+		salesman = frappe.db.get_value("Sales Person", {"is_group": 0}, "name")
+		warehouse = frappe.db.get_value("Warehouse", {"is_group": 0, "company": "PT. Bestindo Persada"}, "name")
+		batch = frappe.get_doc(
+			{
+				"doctype": "Import ND Invoice",
+				"rows": [
+					{
+						"nd_invoice_no": "TEST-ND-E2E-1",
+						"cust_code_nd": nd_code,
+						"invoice_date": frappe.utils.today(),
+						"amount": 125000,
+						"salesman": salesman,
+						"warehouse": warehouse,
+					}
+				],
+			}
+		).insert(ignore_permissions=True)
+		batch.submit()
+
+		si = frappe.get_doc("Sales Invoice", batch.rows[0].sales_invoice)
+		self.assertEqual(si.docstatus, 0)
+		self.assertEqual(si.customer, customer)
+		self.assertEqual(si.custom_nd_invoice_no, "TEST-ND-E2E-1")
+		self.assertEqual(si.items[0].warehouse, warehouse)
+		self.assertEqual(si.grand_total, 125000)
+
+		si.submit()
+		self.assertEqual(si.docstatus, 1)
+		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": si.name}))
