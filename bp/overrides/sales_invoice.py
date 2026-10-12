@@ -270,10 +270,33 @@ def _force_commit():
 		frappe.db._disable_transaction_control = saved
 
 
+def _locked_formats():
+	"""Print formats the print-once rule applies to (BP Settings > Print Lock Formats)."""
+	return set(
+		frappe.get_all(
+			"BP Print Lock Format",
+			filters={"parent": "BP Settings", "parentfield": "print_lock_formats"},
+			pluck="print_format",
+		)
+	)
+
+
+def _resolve_print_format(print_format):
+	"""The format actually rendered: the one asked for, else the doctype default."""
+	return print_format or frappe.get_meta("Sales Invoice").default_print_format or "Standard"
+
+
 def _gate(doc, print_format):
-	"""Block reprints of a submitted invoice; consume the allowance on a real print."""
+	"""Block reprints of a submitted invoice; consume the allowance on a real print.
+
+	Only formats listed in BP Settings > Print Lock Formats are governed, so a
+	Debit Note format (or any other unlisted one) prints freely, as in the old
+	system."""
 	if getattr(doc, "docstatus", 0) != 1:
 		return  # only submitted invoices are governed
+	print_format = _resolve_print_format(print_format)
+	if print_format not in _locked_formats():
+		return  # this format is not under print-once
 	if frappe.flags.get("bp_print_done") == doc.name:
 		return  # already handled in this same request
 	if frappe.flags.read_only:

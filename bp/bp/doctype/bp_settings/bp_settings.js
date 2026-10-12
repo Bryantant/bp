@@ -2,6 +2,10 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("BP Settings", {
+	setup(frm) {
+		frm.set_query("print_lock_formats", () => ({ filters: { doc_type: "Sales Invoice" } }));
+	},
+
 	test_legacy_connection(frm) {
 		if (frm.is_dirty()) {
 			frappe.msgprint(__("Save the settings first, then test the connection."));

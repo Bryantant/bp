@@ -8,6 +8,7 @@
   "print_control_section",
   "enforce_print_once",
   "print_lock_reset_roles",
+  "print_lock_formats",
   "inquiry_section",
   "inquiry_purchase_roles",
   "invoice_control_section",
@@ -50,12 +51,19 @@
    "options": "BP Print Lock Reset Role"
   },
   {
+   "description": "Kunci cetak sekali hanya berlaku untuk Sales Invoice yang dicetak dengan print format di sini. Print format lain (misalnya Debit Note) bebas dicetak. Kosong: tidak ada yang dikunci.",
+   "fieldname": "print_lock_formats",
+   "fieldtype": "Table MultiSelect",
+   "label": "Print Lock Formats",
+   "options": "BP Print Lock Format"
+  },
+  {
    "fieldname": "inquiry_section",
    "fieldtype": "Section Break",
    "label": "Inquiry"
   },
   {
-   "description": "Roles that see the Purchase tab (purchase prices and suppliers) on the Inquiry page. System Manager always sees it.",
+   "description": "Role yang boleh melihat tab Purchase (harga beli dan supplier) di halaman Inquiry. System Manager selalu bisa melihat.",
    "fieldname": "inquiry_purchase_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Inquiry Purchase Roles",
@@ -170,7 +178,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-11 00:00:00",
+ "modified": "2026-10-11 00:00:02",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",
