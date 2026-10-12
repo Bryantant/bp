@@ -1,7 +1,11 @@
 frappe.ui.form.on("Stock Entry", {
+	onload: function (frm) {
+		bp.stock_entry.lock_type_for_sales(frm);
+	},
 	refresh: function (frm) {
 		bp.stock_entry.inject_warehouse_col_css();
 		bp.stock_entry.apply_warehouse_column_visibility(frm, frm.doc.purpose);
+		frm.toggle_enable("stock_entry_type", !bp.stock_entry.is_sales_only());
 	},
 	stock_entry_type: function (frm) {
 		if (!frm.doc.stock_entry_type) {
@@ -17,6 +21,31 @@ frappe.ui.form.on("Stock Entry", {
 frappe.provide("bp.stock_entry");
 
 bp.stock_entry = {
+	// Mirrors bp/overrides/stock_entry.py: sales admins may only relocate stock (HT-8).
+	FULL_ACCESS_ROLES: [
+		"Stock User",
+		"Stock Manager",
+		"Manufacturing User",
+		"Manufacturing Manager",
+		"Accounts User",
+		"Accounts Manager",
+		"System Manager",
+	],
+
+	is_sales_only: function () {
+		return (
+			frappe.user.has_role("Sales User") &&
+			!bp.stock_entry.FULL_ACCESS_ROLES.some((role) => frappe.user.has_role(role))
+		);
+	},
+
+	lock_type_for_sales: function (frm) {
+		if (!frm.is_new() || !bp.stock_entry.is_sales_only()) return;
+		frappe
+			.xcall("bp.overrides.stock_entry.get_sales_entry_type")
+			.then((entry_type) => entry_type && frm.set_value("stock_entry_type", entry_type));
+	},
+
 	inject_warehouse_col_css: function () {
 		if (document.getElementById("bp-warehouse-col-style")) return;
 		$('<style id="bp-warehouse-col-style">')

@@ -110,7 +110,10 @@ doctype_js = {
 
 # Re-insert the Inquiry link into ERPNext's Selling and Buying sidebars after
 # their JSON is synced (see bp/setup/inquiry_sidebar.py).
-after_migrate = ["bp.setup.inquiry_sidebar.add_inquiry_links"]
+after_migrate = [
+	"bp.setup.inquiry_sidebar.add_inquiry_links",
+	"bp.setup.stock_mutation_sidebar.add_stock_mutation_links",
+]
 
 # Uninstallation
 # ------------
@@ -188,6 +191,9 @@ doc_events = {
 	},
 	"Payment Entry": {
 		"validate": "bp.overrides.payment_entry.validate",
+	},
+	"Stock Entry": {
+		"validate": "bp.overrides.stock_entry.validate",
 	},
 	"Customer": {
 		"autoname": "bp.overrides.naming.autoname",
