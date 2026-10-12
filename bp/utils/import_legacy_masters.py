@@ -564,7 +564,8 @@ def _create_contact(ctx, link_doctype, code, person, phone):
 		return None
 
 	doc = frappe.new_doc("Contact")
-	doc.first_name = person or code
+	# No person in the legacy row: use the party's name, not its code (Bry, 2026-10-12, HT-23).
+	doc.first_name = person or _party_name(link_doctype, code)
 	doc.is_primary_contact = 1
 	doc.append("links", {"link_doctype": link_doctype, "link_name": code})
 	for i, number in enumerate(phones):
@@ -572,6 +573,11 @@ def _create_contact(ctx, link_doctype, code, person, phone):
 	_insert(doc, ctx)
 	ctx.note_created("Contact", doc.name, {"party": code})
 	return doc
+
+
+def _party_name(link_doctype, code):
+	field = {"Customer": "customer_name", "Supplier": "supplier_name"}.get(link_doctype)
+	return (field and frappe.db.get_value(link_doctype, code, field)) or code
 
 
 # ---------------------------------------------------------------------------

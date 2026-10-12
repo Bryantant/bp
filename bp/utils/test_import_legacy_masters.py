@@ -5,6 +5,7 @@ from frappe.tests import IntegrationTestCase
 
 from bp.utils.import_legacy_masters import (
 	PRICE_LIST_BY_CUST_TYPE,
+	_party_name,
 	_payment_terms,
 	build_customer,
 	build_item,
@@ -209,3 +210,10 @@ class IntegrationTestImportLegacyMasters(IntegrationTestCase):
 		self.assertEqual(outcome, "unchanged")
 		self.assertEqual(frappe.db.get_value("Customer", code, "customer_name"), before)
 		self.assertTrue(any(d["field"] == "customer_name" for d in ctx.differences))
+
+
+class TestContactNameFallback(IntegrationTestCase):
+	def test_contact_without_person_uses_party_name_not_code(self):
+		code = frappe.db.get_value("Customer", {"customer_name": ("!=", "")}, "name")
+		self.assertEqual(_party_name("Customer", code), frappe.db.get_value("Customer", code, "customer_name"))
+		self.assertEqual(_party_name("Customer", "NO-SUCH-CODE"), "NO-SUCH-CODE")
