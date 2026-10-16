@@ -38,23 +38,23 @@
   },
   {
    "default": "1",
-   "description": "Sales Invoice yang sudah di-submit hanya boleh dicetak satu kali; cetak ulang harus di-reset dulu oleh role di bawah. Jika dimatikan, invoice bisa dicetak berulang kali, tetapi setiap cetak tetap tercatat di Print Log.",
+   "description": "Kunci cetak sekali saat dicetak langsung dari Sales Invoice. Mati sejak 17 Okt 2026: cetak sekali lewat antrean gudang (BP Warehouse Print).",
    "fieldname": "enforce_print_once",
    "fieldtype": "Check",
    "label": "Enforce Print Once"
   },
   {
-   "description": "Role yang boleh me-reset kunci cetak pada Sales Invoice (agar bisa dicetak lagi). System Manager selalu bisa me-reset.",
+   "description": "Role yang boleh membuka cetak ulang: kiriman di antrean gudang (Reset Print) dan, kalau Enforce Print Once menyala, Sales Invoice (Reset Print Lock). System Manager selalu bisa.",
    "fieldname": "print_lock_reset_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Print Lock Reset Roles",
    "options": "BP Print Lock Reset Role"
   },
   {
-   "description": "Kunci cetak sekali hanya berlaku untuk Sales Invoice yang dicetak dengan print format di sini. Print format lain (misalnya Debit Note) bebas dicetak. Kosong: tidak ada yang dikunci.",
+   "description": "Print format yang bisa dipilih admin AR saat Send to Warehouse dari Sales Invoice. Di antrean gudang tiap kiriman hanya bisa dicetak sekali. Kalau Enforce Print Once dinyalakan, format ini juga dikunci saat dicetak langsung dari Sales Invoice.",
    "fieldname": "print_lock_formats",
    "fieldtype": "Table MultiSelect",
-   "label": "Print Lock Formats",
+   "label": "Warehouse Print Formats",
    "options": "BP Print Lock Format"
   },
   {
@@ -178,7 +178,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-11 00:00:02",
+ "modified": "2026-10-17 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",

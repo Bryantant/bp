@@ -215,7 +215,7 @@ def check_active_invoice_limit(doc, method=None):
 # ---------------------------------------------------------------------------
 
 
-def _log(doc, event_type, print_format=None, remarks=None):
+def _log(doc, event_type, print_format=None, remarks=None, warehouse_print=None):
 	"""Append one audit row. Never let a logging failure break printing."""
 	try:
 		frappe.get_doc(
@@ -227,6 +227,7 @@ def _log(doc, event_type, print_format=None, remarks=None):
 				"timestamp": now_datetime(),
 				"print_format": print_format or frappe.form_dict.get("format"),
 				"remarks": remarks,
+				"warehouse_print": warehouse_print,
 			}
 		).insert(ignore_permissions=True)
 	except Exception:

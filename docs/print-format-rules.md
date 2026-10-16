@@ -121,12 +121,19 @@ trial-and-error:
   entirely (nothing else used them). See §3 for a real bug this surfaced (Jinja's
   `{% for %}` loop scoping) and the fix pattern (`namespace()`).
 - Related existing features to keep in mind when touching invoice print formats:
-  `bp_invoice_print_log` and `bp_print_lock_reset_role` doctypes implement a
-  print-lock feature on invoices — a custom Sales Invoice print format needs to stay
-  compatible with that behavior (see `bp/bp/doctype/bp_invoice_print_log/` and
-  `bp/bp/overrides/sales_invoice.py`). The lock is shared per-document, not
-  per-print-format — printing *any* format for a Sales Invoice consumes the same
-  once-only allowance (confirmed intentional, not something to "fix" by default).
+  print-once lives in the **warehouse print queue** since HT-171 (meeting Mulyadi
+  15 Okt, Bry 2026-10-17). AR clicks Sales Invoice > Print > **Send to Warehouse** and
+  picks a format from BP Settings > Warehouse Print Formats (`print_lock_formats`:
+  "Sales Invoice", "Surat Jalan"); each send is one `BP Warehouse Print` row that the
+  **BP Admin Gudang** role prints exactly once (`bp/warehouse_print.py`, PDF rendered
+  with `frappe.flags.ignore_print_permissions` because that role has no Sales Invoice
+  access). AR may send again any number of times; a printed row reopens only through
+  Reset by a BP Settings > Print Lock Reset Roles user, with a reason. Every Sent /
+  Printed / Blocked / Reset lands in `BP Invoice Print Log` (`warehouse_print` column).
+  Printing from the Sales Invoice itself is free: `enforce_print_once` = 0
+  (`disable_print_once_on_invoice` patch). The older invoice-level gate in
+  `bp/bp/overrides/sales_invoice.py` still logs and counts direct prints of the listed
+  formats, and blocks reprints again only if that switch is turned back on.
 - Dev workflow when iterating on a print format: edit the template file(s) under
   `bp/bp/templates/print_formats/`, re-run the upsert patch, `bench --site
   bp.localhost clear-cache`, then preview via the doctype's Print view (or
@@ -235,13 +242,10 @@ installed by `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`.
 - The bottom-right "printed by / at" stamp uses the existing print-lock audit fields
   (`bp_last_printed_by` / `bp_last_printed_at`) — inline Jinja, the `print_stamp`
   block using `frappe.get_fullname` + `frappe.utils.format_datetime` — blank until the
-  invoice has actually been printed once. Because the print-lock blocks
-  *re-rendering* an already-printed invoice in **any** format (see §1), you can't
-  preview this stamp on a real already-printed invoice without an Accounts
-  Manager/System Manager resetting that invoice's lock first
-  (`bp.overrides.sales_invoice.reset_print_lock`) — this was verified by
-  unit-testing `format_datetime`/`get_fullname` directly rather than forcing a reset
-  on a real record.
+  invoice has actually been printed once. A warehouse-queue print sets both fields to
+  the warehouse admin and the current time just before rendering, so the warehouse
+  copy carries its own printer and time. With `enforce_print_once` off (the default
+  since HT-171) the stamp can be previewed on any printed invoice.
 - Company `Address.phone`/`fax` can only hold Frappe's strict phone format (digits,
   space, `+ _ - , . * # ( )` only, ≤20 chars — see §3) — the legacy text's second
   "hunting line" number and the `(Hunting)` annotation aren't representable there.

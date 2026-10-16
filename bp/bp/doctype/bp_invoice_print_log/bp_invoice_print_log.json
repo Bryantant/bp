@@ -13,6 +13,7 @@
   "timestamp",
   "column_break_main",
   "print_format",
+  "warehouse_print",
   "remarks"
  ],
  "fields": [
@@ -32,7 +33,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Event Type",
-   "options": "Printed\nBlocked\nReset",
+   "options": "Printed\nBlocked\nReset\nSent",
    "read_only": 1,
    "reqd": 1
   },
@@ -63,6 +64,14 @@
    "read_only": 1
   },
   {
+   "fieldname": "warehouse_print",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Warehouse Print",
+   "options": "BP Warehouse Print",
+   "read_only": 1
+  },
+  {
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks",
@@ -71,7 +80,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-06-11 00:00:00",
+ "modified": "2026-10-17 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Invoice Print Log",

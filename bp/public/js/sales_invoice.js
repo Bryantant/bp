@@ -5,6 +5,7 @@ frappe.ui.form.on("Sales Invoice", {
 		});
 		bp.sales_invoice.sync_from_table(frm);
 		bp.sales_invoice.render_print_controls(frm);
+		bp.sales_invoice.add_send_to_warehouse(frm);
 	},
 
 	bp_sales_person: function (frm) {
@@ -111,5 +112,80 @@ bp.sales_invoice = {
 			},
 			__("Print")
 		);
+	},
+
+	// HT-171: queue the invoice for the warehouse admin, who may print each send
+	// once (bp.warehouse_print). AR picks the format; every send is logged.
+	add_send_to_warehouse: function (frm) {
+		// BP Warehouse Print is "User Cannot Create" (rows only come from this
+		// button), so Frappe lists it under in_create instead of can_create.
+		var user = frappe.boot.user;
+		var can_send =
+			user.can_create.includes("BP Warehouse Print") ||
+			user.in_create.includes("BP Warehouse Print");
+		if (frm.doc.docstatus !== 1 || !can_send) return;
+
+		frm.add_custom_button(
+			__("Send to Warehouse"),
+			function () {
+				frappe
+					.xcall("bp.warehouse_print.send_history", { sales_invoice: frm.doc.name })
+					.then(function (r) {
+						bp.sales_invoice.send_to_warehouse_dialog(frm, r);
+					});
+			},
+			__("Print")
+		);
+	},
+
+	send_to_warehouse_dialog: function (frm, r) {
+		if (!r.formats.length) {
+			frappe.msgprint(__("No Warehouse Print Formats set in BP Settings."));
+			return;
+		}
+		var describe = function (format) {
+			var h = r.history[format] || {};
+			if (!h.sent) return '<p class="text-muted small">' + __("Not sent yet") + "</p>";
+			var text = __("Sent {0} time(s), printed {1} time(s)", [h.sent, h.printed]);
+			if (h.pending) text += ", " + __("{0} waiting to be printed", [h.pending]);
+			if (h.last_printed_by) text += ", " + __("last printed by {0}", [h.last_printed_by]);
+			return '<p class="text-muted small">' + frappe.utils.escape_html(text) + "</p>";
+		};
+		var d = new frappe.ui.Dialog({
+			title: __("Send to Warehouse"),
+			fields: [
+				{
+					fieldname: "print_format",
+					fieldtype: "Select",
+					label: __("Print Format"),
+					options: r.formats,
+					default: r.formats[0],
+					reqd: 1,
+					onchange: function () {
+						d.fields_dict.history.$wrapper.html(describe(d.get_value("print_format")));
+					},
+				},
+				{ fieldname: "history", fieldtype: "HTML", options: describe(r.formats[0]) },
+			],
+			primary_action_label: __("Send"),
+			primary_action: function (values) {
+				frappe
+					.xcall("bp.warehouse_print.send_to_warehouse", {
+						sales_invoice: frm.doc.name,
+						print_format: values.print_format,
+					})
+					.then(function (name) {
+						d.hide();
+						frappe.show_alert({
+							message: __("Sent to warehouse as {0} ({1})", [
+								name,
+								values.print_format,
+							]),
+							indicator: "green",
+						});
+					});
+			},
+		});
+		d.show();
 	},
 };
