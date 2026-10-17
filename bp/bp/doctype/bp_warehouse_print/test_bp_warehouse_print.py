@@ -135,3 +135,19 @@ class TestBPWarehousePrint(UnitTestCase):
 			wp.print_pdf(name)
 		with self.assertRaises(frappe.PermissionError):
 			wp.reset(name, "no role")
+
+	def test_invoice_level_lock_does_not_block_the_queue(self, _formats, get_print, _commit):
+		# With Enforce Print Once on and the invoice already printed from the form,
+		# the before_print gate must still let the queue's own render through.
+		from bp.overrides import sales_invoice as si
+
+		def render(doctype, invoice, print_format, as_pdf):
+			si._gate(frappe._dict(name=invoice, docstatus=1, bp_print_status="Printed"), print_format)
+			return FAKE_PDF
+
+		get_print.side_effect = render
+		name = self._send()
+		with patch("bp.overrides.sales_invoice.enforced", return_value=True):
+			wp.print_pdf(name)
+		self.assertEqual(frappe.db.get_value("BP Warehouse Print", name, "status"), "Printed")
+		self.assertFalse(frappe.flags.bp_print_done)

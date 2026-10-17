@@ -140,11 +140,16 @@ def print_pdf(name):
 		update_modified=False,
 	)
 
+	# The queue row is the lock here. Mark the invoice as handled for this request
+	# so the invoice-level gate (bp.overrides.sales_invoice._gate, active when
+	# Enforce Print Once is on) does not block or count this render again.
 	frappe.flags.ignore_print_permissions = True
+	frappe.flags.bp_print_done = row.sales_invoice
 	try:
 		pdf = frappe.get_print("Sales Invoice", row.sales_invoice, row.print_format, as_pdf=True)
 	finally:
 		frappe.flags.ignore_print_permissions = False
+		frappe.flags.bp_print_done = None
 
 	frappe.db.set_value(
 		DOCTYPE,
