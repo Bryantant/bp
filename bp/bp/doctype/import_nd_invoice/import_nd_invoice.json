@@ -11,7 +11,11 @@
   "column_break_ovjo",
   "default_salesman",
   "section_break_ifhm",
+  "excel_file",
+  "column_break_file",
+  "import_file_button",
   "upload_excel_button",
+  "section_break_rows",
   "rows",
   "amended_from"
  ],
@@ -35,6 +39,25 @@
    "fieldtype": "Link",
    "label": "Salesman",
    "options": "Sales Person"
+  },
+  {
+   "description": "Lampirkan file export ND (Excel), lalu klik Import ke Tabel. File tetap tersimpan di batch ini.",
+   "fieldname": "excel_file",
+   "fieldtype": "Attach",
+   "label": "File Excel ND"
+  },
+  {
+   "fieldname": "column_break_file",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "import_file_button",
+   "fieldtype": "Button",
+   "label": "Import ke Tabel"
+  },
+  {
+   "fieldname": "section_break_rows",
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "upload_excel_button",
@@ -68,7 +91,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-17 10:00:00.000000",
+ "modified": "2026-10-17 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Import ND Invoice",

@@ -1,10 +1,21 @@
 frappe.ui.form.on("Import ND Invoice", {
 	refresh(frm) {
 		frm.set_df_property("upload_excel_button", "hidden", frm.doc.docstatus !== 0);
+		frm.set_df_property("import_file_button", "hidden", frm.doc.docstatus !== 0);
 	},
 
 	upload_excel_button(frm) {
 		bp.import_sales_invoice.upload(frm);
+	},
+
+	// Second way in: the file sits in the Attach field (kept with the batch) and
+	// this button reads it into the grid, as often as needed.
+	import_file_button(frm) {
+		if (!frm.doc.excel_file) {
+			frappe.msgprint(__("Attach an Excel file in File Excel ND first."));
+			return;
+		}
+		bp.import_sales_invoice.load_rows(frm, frm.doc.excel_file);
 	},
 
 	// Same behavior as Source Warehouse on Sales Invoice/Delivery Note
@@ -54,42 +65,48 @@ bp.import_sales_invoice = {
 				allowed_file_types: [".xlsx"],
 			},
 			on_success: function (file) {
-				frappe.call({
-					method: "bp.bp.doctype.import_nd_invoice.import_nd_invoice.parse_excel",
-					args: { file_url: file.file_url },
-					freeze: true,
-					freeze_message: __("Parsing file..."),
-					callback: function (r) {
-						if (r.exc) return;
-						var msg = r.message || {};
+				bp.import_sales_invoice.load_rows(frm, file.file_url);
+			},
+		});
+	},
 
-						// Drop the blank placeholder row Frappe auto-adds to a new/empty
-						// mandatory Table field -- otherwise it sits mixed in with real
-						// data and blocks Save/Submit with "ND Invoice No is mandatory".
-						frm.doc.rows = (frm.doc.rows || []).filter(
-							(row) => row.nd_invoice_no || row.cust_code_nd || row.invoice_date || row.amount
-						);
+	// Shared by both ways in (Upload Excel and Import ke Tabel): parse the file
+	// server-side and add its rows to the grid, skipping ND numbers already there.
+	load_rows: function (frm, file_url) {
+		frappe.call({
+			method: "bp.bp.doctype.import_nd_invoice.import_nd_invoice.parse_excel",
+			args: { file_url: file_url },
+			freeze: true,
+			freeze_message: __("Parsing file..."),
+			callback: function (r) {
+				if (r.exc) return;
+				var msg = r.message || {};
 
-						var existing = new Set(frm.doc.rows.map((row) => row.nd_invoice_no));
-						var added = 0;
-						(msg.rows || []).forEach(function (row) {
-							if (existing.has(row.nd_invoice_no)) return;
-							if (frm.doc.default_warehouse) row.warehouse = frm.doc.default_warehouse;
-							if (frm.doc.default_salesman) row.salesman = frm.doc.default_salesman;
-							frm.add_child("rows", row);
-							existing.add(row.nd_invoice_no);
-							added++;
-						});
-						frm.refresh_field("rows");
-						frm.dirty();
-						frappe.show_alert({
-							message: __("Added {0} row(s). Skipped {1} duplicate(s).", [
-								added,
-								(msg.rows || []).length - added,
-							]),
-							indicator: added ? "green" : "orange",
-						});
-					},
+				// Drop the blank placeholder row Frappe auto-adds to a new/empty
+				// mandatory Table field -- otherwise it sits mixed in with real
+				// data and blocks Save/Submit with "ND Invoice No is mandatory".
+				frm.doc.rows = (frm.doc.rows || []).filter(
+					(row) => row.nd_invoice_no || row.cust_code_nd || row.invoice_date || row.amount
+				);
+
+				var existing = new Set(frm.doc.rows.map((row) => row.nd_invoice_no));
+				var added = 0;
+				(msg.rows || []).forEach(function (row) {
+					if (existing.has(row.nd_invoice_no)) return;
+					if (frm.doc.default_warehouse) row.warehouse = frm.doc.default_warehouse;
+					if (frm.doc.default_salesman) row.salesman = frm.doc.default_salesman;
+					frm.add_child("rows", row);
+					existing.add(row.nd_invoice_no);
+					added++;
+				});
+				frm.refresh_field("rows");
+				frm.dirty();
+				frappe.show_alert({
+					message: __("Added {0} row(s). Skipped {1} duplicate(s).", [
+						added,
+						(msg.rows || []).length - added,
+					]),
+					indicator: added ? "green" : "orange",
 				});
 			},
 		});
