@@ -120,6 +120,13 @@ def validate(doc, method=None):
 		if not doc.bp_sales_person:
 			return
 
+	if not doc.bp_sales_person and doc.get("custom_nd_invoice_no"):
+		# ND System invoices (Import ND Invoice) carry no salesperson, as in the
+		# old Access tool (Bry 2026-10-17); the field is not mandatory for them
+		# (patch sales_person_optional_for_nd_invoices).
+		doc.sales_team = []
+		return
+
 	if not doc.bp_sales_person:
 		frappe.throw("Sales Person is required.", title="Missing Sales Person")
 

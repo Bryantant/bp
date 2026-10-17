@@ -12,6 +12,9 @@ Each Sales Invoice is named after the ND "Invoice Number" from the Excel file
 (e.g. I260700167), not the BP naming series -- client decision 2026-10-17.
 The batch itself keeps its own INDI-YYYY-##### name.
 
+Salesman is optional: ND invoices carry no salesperson, as in the old Access
+tool (Bry 2026-10-17). Warehouse is still required on every row.
+
 The ND System's Excel export (InvND) uses column headers that don't match
 Frappe field-label conventions, so COLUMN_MAP is hardcoded rather than left
 to generic column matching. Header matching is case-insensitive since a real
@@ -120,8 +123,6 @@ class ImportNDInvoice(Document):
 						row.idx, row.cust_code_nd
 					)
 				)
-			if not row.salesman:
-				problems.append(_("Row {0}: Salesman is required").format(row.idx))
 			if not row.warehouse:
 				problems.append(_("Row {0}: Warehouse is required").format(row.idx))
 			if frappe.db.exists("Sales Invoice", {"custom_nd_invoice_no": row.nd_invoice_no}):

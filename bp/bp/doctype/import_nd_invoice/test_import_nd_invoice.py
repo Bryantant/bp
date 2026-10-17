@@ -76,39 +76,24 @@ class TestImportNDInvoice(FrappeTestCase):
 		self.assertEqual(doc.rows[0].cust_code, customer.name)
 		self.assertEqual(doc.rows[0].customer_name, customer.customer_name)
 
-	def test_create_sales_invoices_blocks_all_or_nothing_on_missing_salesman(self):
-		nd_code = frappe.generate_hash(length=8)
-		customer = frappe.get_doc(
-			{
-				"doctype": "Customer",
-				"customer_name": f"Test Import ND Customer {nd_code}",
-				"customer_group": "Individual",
-				"territory": "Indonesia",
-				"custom_nd_code": nd_code,
-				"custom_cn_initial": "Z",
-			}
-		).insert(ignore_permissions=True)
-		self.addCleanup(lambda: frappe.delete_doc("Customer", customer.name, force=True, ignore_permissions=True))
-
-		warehouse = frappe.get_all("Warehouse", limit=1, pluck="name")[0]
-		doc = frappe.get_doc(
-			{
-				"doctype": "Import ND Invoice",
-				"rows": [
-					{
-						"nd_invoice_no": f"TEST-{nd_code}",
-						"cust_code_nd": nd_code,
-						"invoice_date": "2026-01-01",
-						"amount": 1000,
-						"warehouse": warehouse,
-						# salesman deliberately omitted
-					}
-				],
-			}
+	def test_missing_warehouse_blocks_submit_but_salesman_is_optional(self):
+		customer, nd_code = frappe.db.get_value(
+			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
-		ImportNDInvoice.resolve_customers(doc)
-		self.assertRaises(frappe.ValidationError, ImportNDInvoice.create_sales_invoices, doc)
-		self.assertFalse(frappe.db.exists("Sales Invoice", {"custom_nd_invoice_no": f"TEST-{nd_code}"}))
+		row = {
+			"nd_invoice_no": f"TEST-{frappe.generate_hash(length=8)}",
+			"cust_code_nd": nd_code,
+			"invoice_date": "2026-01-01",
+			"amount": 1000,
+			"resolved_customer": customer,
+			# salesman deliberately omitted: optional for ND invoices
+		}
+		doc = frappe.get_doc({"doctype": "Import ND Invoice", "rows": [row]})
+		with self.assertRaisesRegex(frappe.ValidationError, "Warehouse is required"):
+			ImportNDInvoice.before_submit(doc)
+
+		doc.rows[0].warehouse = frappe.db.get_value("Warehouse", {"is_group": 0}, "name")
+		ImportNDInvoice.before_submit(doc)  # no salesman, still passes
 
 
 class TestImportNDInvoiceEndToEnd(FrappeTestCase):
@@ -123,7 +108,6 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
-		salesman = frappe.db.get_value("Sales Person", {"is_group": 0}, "name")
 		warehouse = frappe.db.get_value("Warehouse", {"is_group": 0, "company": "PT. Bestindo Persada"}, "name")
 		batch = frappe.get_doc(
 			{
@@ -134,7 +118,7 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 						"cust_code_nd": nd_code,
 						"invoice_date": frappe.utils.today(),
 						"amount": 125000,
-						"salesman": salesman,
+						# no salesman: ND invoices carry none (Bry 2026-10-17)
 						"warehouse": warehouse,
 					}
 				],
@@ -149,6 +133,8 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		self.assertEqual(si.custom_nd_invoice_no, "TEST-ND-E2E-1")
 		self.assertEqual(si.items[0].warehouse, warehouse)
 		self.assertEqual(si.grand_total, 125000)
+		self.assertFalse(si.bp_sales_person)
+		self.assertFalse(si.sales_team)
 
 		si.submit()
 		self.assertEqual(si.docstatus, 1)
