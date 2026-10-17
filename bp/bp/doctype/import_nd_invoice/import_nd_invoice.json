@@ -14,7 +14,6 @@
   "excel_file",
   "column_break_file",
   "import_file_button",
-  "upload_excel_button",
   "section_break_rows",
   "rows",
   "amended_from"
@@ -60,12 +59,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "upload_excel_button",
-   "fieldtype": "Button",
-   "label": "Upload Excel"
-  },
-  {
-   "description": "Upload an ND invoice export (Excel) to populate rows, or add them manually. Set Salesman and Warehouse on each row before submitting.",
+   "description": "Attach an ND invoice export (Excel) in File Excel ND and click Import ke Tabel, or add rows manually. Set Salesman and Warehouse on each row before submitting.",
    "fieldname": "rows",
    "fieldtype": "Table",
    "options": "Import ND Invoice Item",
@@ -91,7 +85,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-17 12:00:00.000000",
+ "modified": "2026-10-17 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Import ND Invoice",

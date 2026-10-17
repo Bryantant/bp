@@ -1,15 +1,10 @@
 frappe.ui.form.on("Import ND Invoice", {
 	refresh(frm) {
-		frm.set_df_property("upload_excel_button", "hidden", frm.doc.docstatus !== 0);
 		frm.set_df_property("import_file_button", "hidden", frm.doc.docstatus !== 0);
 	},
 
-	upload_excel_button(frm) {
-		bp.import_sales_invoice.upload(frm);
-	},
-
-	// Second way in: the file sits in the Attach field (kept with the batch) and
-	// this button reads it into the grid, as often as needed.
+	// The file sits in the Attach field (kept with the batch); this button reads
+	// it into the grid, as often as needed.
 	import_file_button(frm) {
 		if (!frm.doc.excel_file) {
 			frappe.msgprint(__("Attach an Excel file in File Excel ND first."));
@@ -32,7 +27,7 @@ frappe.ui.form.on("Import ND Invoice", {
 
 frappe.ui.form.on("Import ND Invoice Item", {
 	// Fires when a row is added via the grid's own "Add Row" button (not for
-	// frm.add_child calls from our own code, e.g. the Excel upload handler --
+	// frm.add_child calls from our own code, e.g. load_rows below --
 	// that path applies defaults itself before adding the row). Frappe scopes
 	// "<fieldname>_add" handlers by the CHILD doctype, not the parent, since
 	// script_manager.trigger() is called with the child row's own doctype.
@@ -58,20 +53,8 @@ bp.import_sales_invoice = {
 		}
 	},
 
-	upload: function (frm) {
-		new frappe.ui.FileUploader({
-			allow_multiple: false,
-			restrictions: {
-				allowed_file_types: [".xlsx"],
-			},
-			on_success: function (file) {
-				bp.import_sales_invoice.load_rows(frm, file.file_url);
-			},
-		});
-	},
-
-	// Shared by both ways in (Upload Excel and Import ke Tabel): parse the file
-	// server-side and add its rows to the grid, skipping ND numbers already there.
+	// Parse the file server-side and add its rows to the grid, skipping ND
+	// numbers already there.
 	load_rows: function (frm, file_url) {
 		frappe.call({
 			method: "bp.bp.doctype.import_nd_invoice.import_nd_invoice.parse_excel",
