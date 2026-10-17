@@ -143,6 +143,7 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		batch.submit()
 
 		si = frappe.get_doc("Sales Invoice", batch.rows[0].sales_invoice)
+		self.assertEqual(si.name, "TEST-ND-E2E-1")  # named after the ND Invoice Number
 		self.assertEqual(si.docstatus, 0)
 		self.assertEqual(si.customer, customer)
 		self.assertEqual(si.custom_nd_invoice_no, "TEST-ND-E2E-1")
@@ -152,3 +153,29 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		si.submit()
 		self.assertEqual(si.docstatus, 1)
 		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": si.name}))
+
+	def test_submit_blocked_when_nd_number_is_taken_as_invoice_name(self):
+		taken = frappe.db.get_value(
+			"Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name"
+		)
+		customer, nd_code = frappe.db.get_value(
+			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
+		)
+		doc = frappe.get_doc(
+			{
+				"doctype": "Import ND Invoice",
+				"rows": [
+					{
+						"nd_invoice_no": taken,
+						"cust_code_nd": nd_code,
+						"invoice_date": frappe.utils.today(),
+						"amount": 1,
+						"salesman": frappe.db.get_value("Sales Person", {"is_group": 0}, "name"),
+						"warehouse": frappe.db.get_value("Warehouse", {"is_group": 0}, "name"),
+						"resolved_customer": customer,
+					}
+				],
+			}
+		)
+		with self.assertRaisesRegex(frappe.ValidationError, "cannot be used as the name"):
+			ImportNDInvoice.before_submit(doc)

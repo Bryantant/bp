@@ -8,6 +8,10 @@ iib.iib.doctype.so_batch.so_batch.SOBatch: one submittable parent document
 holding an editable child-table grid; Submit creates the target documents,
 Cancel reverses them.
 
+Each Sales Invoice is named after the ND "Invoice Number" from the Excel file
+(e.g. I260700167), not the BP naming series -- client decision 2026-10-17.
+The batch itself keeps its own INDI-YYYY-##### name.
+
 The ND System's Excel export (InvND) uses column headers that don't match
 Frappe field-label conventions, so COLUMN_MAP is hardcoded rather than left
 to generic column matching. Header matching is case-insensitive since a real
@@ -123,6 +127,14 @@ class ImportNDInvoice(Document):
 						row.idx, row.nd_invoice_no
 					)
 				)
+			elif frappe.db.exists("Sales Invoice", row.nd_invoice_no.strip()):
+				# The new invoice takes this number as its name, so any invoice already
+				# holding it (an opening invoice named after the legacy number, say) blocks it.
+				problems.append(
+					_("Row {0}: Sales Invoice {1} already exists, so it cannot be used as the name").format(
+						row.idx, row.nd_invoice_no
+					)
+				)
 
 		if problems:
 			frappe.throw(
@@ -155,7 +167,8 @@ class ImportNDInvoice(Document):
 					"warehouse": row.warehouse,
 				},
 			)
-			si.insert(ignore_permissions=True)
+			# set_name skips before_naming and the naming series entirely
+			si.insert(ignore_permissions=True, set_name=row.nd_invoice_no)
 			# on_submit runs after this document's own db_update() already ran, so mutating
 			# row.sales_invoice in-memory alone would silently not persist -- write it directly.
 			frappe.db.set_value(
