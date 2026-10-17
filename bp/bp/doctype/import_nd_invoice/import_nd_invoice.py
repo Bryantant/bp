@@ -37,14 +37,17 @@ exact bug while testing this controller directly.)
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils.xlsxutils import read_xlsx_file_from_attached_file
+from frappe.utils.xlsxutils import make_xlsx, read_xlsx_file_from_attached_file
 
-COLUMN_MAP = {
-	"invoice number": "nd_invoice_no",
-	"invoice date": "invoice_date",
-	"customerid": "cust_code_nd",
-	"net amount": "amount",
-}
+# Headers as the ND export writes them, in its column order. download_template
+# writes exactly these; COLUMN_MAP (matched case-insensitively) is built from them.
+TEMPLATE_COLUMNS = [
+	("Invoice Number", "nd_invoice_no"),
+	("CustomerID", "cust_code_nd"),
+	("Invoice Date", "invoice_date"),
+	("Net Amount", "amount"),
+]
+COLUMN_MAP = {header.lower(): fieldname for header, fieldname in TEMPLATE_COLUMNS}
 
 
 def _resolve_customer_map(cust_code_nd_values):
@@ -242,3 +245,14 @@ def parse_excel(file_url):
 			row["customer_name"] = match[1]
 
 	return {"rows": parsed, "errors": errors}
+
+
+@frappe.whitelist()
+def download_template():
+	"""Empty .xlsx with the ND export headers, for building an import file by hand."""
+	frappe.only_for(["System Manager", "Accounts Manager"])
+
+	xlsx = make_xlsx([[header for header, _fieldname in TEMPLATE_COLUMNS]], "Import ND Invoice")
+	frappe.response["filename"] = "import_nd_invoice_template.xlsx"
+	frappe.response["filecontent"] = xlsx.getvalue()
+	frappe.response["type"] = "binary"

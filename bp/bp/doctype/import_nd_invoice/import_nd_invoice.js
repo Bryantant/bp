@@ -13,6 +13,14 @@ frappe.ui.form.on("Import ND Invoice", {
 		bp.import_sales_invoice.load_rows(frm, frm.doc.excel_file);
 	},
 
+	download_template_button() {
+		window.open(
+			frappe.urllib.get_full_url(
+				"/api/method/bp.bp.doctype.import_nd_invoice.import_nd_invoice.download_template"
+			)
+		);
+	},
+
 	// Same behavior as Source Warehouse on Sales Invoice/Delivery Note
 	// (see erpnext TransactionController.autofill_warehouse): changing the
 	// header default overwrites it on every existing row, not just blank ones.
