@@ -130,10 +130,10 @@ trial-and-error:
   access). AR may send again any number of times; a printed row reopens only through
   Reset by a BP Settings > Print Lock Reset Roles user, with a reason. Every Sent /
   Printed / Blocked / Reset lands in `BP Invoice Print Log` (`warehouse_print` column).
-  Printing from the Sales Invoice itself is free: `enforce_print_once` = 0
-  (`disable_print_once_on_invoice` patch). The older invoice-level gate in
-  `bp/bp/overrides/sales_invoice.py` still logs and counts direct prints of the listed
-  formats, and blocks reprints again only if that switch is turned back on.
+  Printing from the Sales Invoice itself is always free: the Enforce Print Once switch
+  and the invoice-level Reset Print Lock were removed (Bry 2026-10-17). The gate in
+  `bp/bp/overrides/sales_invoice.py` only logs and counts direct prints of the listed
+  formats; it never blocks.
 - Dev workflow when iterating on a print format: edit the template file(s) under
   `bp/bp/templates/print_formats/`, re-run the upsert patch, `bench --site
   bp.localhost clear-cache`, then preview via the doctype's Print view (or
@@ -244,8 +244,8 @@ installed by `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`.
   block using `frappe.get_fullname` + `frappe.utils.format_datetime` — blank until the
   invoice has actually been printed once. A warehouse-queue print sets both fields to
   the warehouse admin and the current time just before rendering, so the warehouse
-  copy carries its own printer and time. With `enforce_print_once` off (the default
-  since HT-171) the stamp can be previewed on any printed invoice.
+  copy carries its own printer and time. Since direct printing is never blocked, the
+  stamp can be previewed on any printed invoice.
 - Company `Address.phone`/`fax` can only hold Frappe's strict phone format (digits,
   space, `+ _ - , . * # ( )` only, ≤20 chars — see §3) — the legacy text's second
   "hunting line" number and the `(Hunting)` annotation aren't representable there.

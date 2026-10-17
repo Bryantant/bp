@@ -6,10 +6,9 @@ format ("Sales Invoice" with prices, "Surat Jalan" without). Each send is one
 AR may send the same invoice again as often as needed; every send, print,
 blocked reprint and reset is written to "BP Invoice Print Log".
 
-Printing from the Sales Invoice itself stays free (BP Settings > Enforce
-Print Once is off). The warehouse admin role has no access to Sales Invoice,
-so the PDF is rendered here with print permissions bypassed, only for a row
-that is still Pending.
+Printing from the Sales Invoice itself is always free (only logged). The
+warehouse admin role has no access to Sales Invoice, so the PDF is rendered
+here with print permissions bypassed, only for a row that is still Pending.
 """
 
 import frappe
@@ -141,8 +140,8 @@ def print_pdf(name):
 	)
 
 	# The queue row is the lock here. Mark the invoice as handled for this request
-	# so the invoice-level gate (bp.overrides.sales_invoice._gate, active when
-	# Enforce Print Once is on) does not block or count this render again.
+	# so the invoice print gate (bp.overrides.sales_invoice._gate) does not log or
+	# count this render a second time.
 	frappe.flags.ignore_print_permissions = True
 	frappe.flags.bp_print_done = row.sales_invoice
 	try:

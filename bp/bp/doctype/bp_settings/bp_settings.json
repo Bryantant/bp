@@ -6,7 +6,6 @@
  "engine": "InnoDB",
  "field_order": [
   "print_control_section",
-  "enforce_print_once",
   "print_lock_reset_roles",
   "print_lock_formats",
   "inquiry_section",
@@ -34,24 +33,17 @@
   {
    "fieldname": "print_control_section",
    "fieldtype": "Section Break",
-   "label": "Invoice Print Lock"
+   "label": "Warehouse Print"
   },
   {
-   "default": "1",
-   "description": "Kunci cetak sekali saat dicetak langsung dari Sales Invoice. Mati sejak 17 Okt 2026: cetak sekali lewat antrean gudang (BP Warehouse Print).",
-   "fieldname": "enforce_print_once",
-   "fieldtype": "Check",
-   "label": "Enforce Print Once"
-  },
-  {
-   "description": "Role yang boleh membuka cetak ulang: kiriman di antrean gudang (Reset Print) dan, kalau Enforce Print Once menyala, Sales Invoice (Reset Print Lock). System Manager selalu bisa.",
+   "description": "Role yang boleh membuka cetak ulang kiriman di antrean gudang (Reset Print di BP Warehouse Print). System Manager selalu bisa.",
    "fieldname": "print_lock_reset_roles",
    "fieldtype": "Table MultiSelect",
    "label": "Print Lock Reset Roles",
    "options": "BP Print Lock Reset Role"
   },
   {
-   "description": "Print format yang bisa dipilih admin AR saat Send to Warehouse dari Sales Invoice. Di antrean gudang tiap kiriman hanya bisa dicetak sekali. Kalau Enforce Print Once dinyalakan, format ini juga dikunci saat dicetak langsung dari Sales Invoice.",
+   "description": "Print format yang bisa dipilih admin AR saat Send to Warehouse dari Sales Invoice. Di antrean gudang tiap kiriman hanya bisa dicetak sekali. Cetak langsung dari Sales Invoice selalu bebas, format ini hanya dicatat di Print Log.",
    "fieldname": "print_lock_formats",
    "fieldtype": "Table MultiSelect",
    "label": "Warehouse Print Formats",

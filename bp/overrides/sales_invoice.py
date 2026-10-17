@@ -197,21 +197,19 @@ def check_active_invoice_limit(doc, method=None):
 
 
 # ---------------------------------------------------------------------------
-# Print-once control + audit trail
+# Print audit trail
 #
-# A submitted Sales Invoice may be printed once. Reprints are blocked until a
-# user with an allowed role (see _reset_allowed_roles) resets the lock. Every
-# Printed / Blocked / Reset event is written to "BP Invoice Print Log".
+# Printing from the Sales Invoice is always free (Bry 2026-10-17, HT-171):
+# print-once lives only in the warehouse print queue (bp.warehouse_print).
+# Every real print of a listed format is still logged to "BP Invoice Print Log"
+# and counted on the invoice (bp_print_status / bp_print_count /
+# bp_last_printed_by / bp_last_printed_at, which the print formats stamp).
 #
-# BP Settings > Enforce Print Once switches the blocking off: reprints are then
-# allowed, but each print is still logged and counted, so the audit trail and
-# bp_print_status stay accurate if the lock is switched back on later.
-#
-# Enforcement lives entirely in before_print, which fires on every print/PDF
-# render (on-screen preview, on-screen "Print", single Download PDF, and bulk
+# Detection lives in before_print, which fires on every print/PDF render
+# (on-screen preview, on-screen "Print", single Download PDF, and bulk
 # Download PDF from the list view) regardless of which pdf_generator is
 # configured -- see the comment in _gate() for why the `on_print_pdf` app
-# hook this used to also rely on is not usable for that purpose.
+# hook is not usable for that purpose.
 # ---------------------------------------------------------------------------
 
 
@@ -272,7 +270,8 @@ def _force_commit():
 
 
 def _locked_formats():
-	"""Print formats the print-once rule applies to (BP Settings > Print Lock Formats)."""
+	"""Formats AR can send to the warehouse queue and whose direct prints are logged
+	(BP Settings > Warehouse Print Formats, fieldname print_lock_formats)."""
 	return set(
 		frappe.get_all(
 			"BP Print Lock Format",
@@ -288,42 +287,29 @@ def _resolve_print_format(print_format):
 
 
 def _gate(doc, print_format):
-	"""Block reprints of a submitted invoice; consume the allowance on a real print.
+	"""Log and count a real print of a submitted invoice. Never blocks.
 
-	Only formats listed in BP Settings > Print Lock Formats are governed, so a
-	Debit Note format (or any other unlisted one) prints freely, as in the old
-	system."""
+	Only formats listed in BP Settings > Warehouse Print Formats are logged, so
+	a Debit Note format (or any other unlisted one) leaves no trail."""
 	if getattr(doc, "docstatus", 0) != 1:
-		return  # only submitted invoices are governed
+		return  # only submitted invoices are tracked
 	print_format = _resolve_print_format(print_format)
 	if print_format not in _locked_formats():
-		return  # this format is not under print-once
+		return  # this format is not tracked
 	if frappe.flags.get("bp_print_done") == doc.name:
 		return  # already handled in this same request
 	if frappe.flags.read_only:
 		return  # maintenance/replica — can't write; don't break printing
 
-	if doc.get("bp_print_status") == "Printed" and enforced("enforce_print_once"):
-		# Locked: record the attempt, then abort the render so no copy is produced.
-		_log(doc, "Blocked", print_format, remarks="Reprint attempt blocked")
-		_force_commit()  # persist the Blocked row before the throw rolls back the request
-		frappe.throw(
-			_("This invoice has already been printed. Ask a user with the {0} role to reset it before reprinting.").format(
-				_reset_allowed_roles_label()
-			),
-			title=_("Already Printed"),
-		)
-
-	# Not yet printed. A plain on-screen preview (or the in-dialog preview
-	# AJAX call) does not consume the allowance -- only an actual print
-	# consumes: the on-screen "Print" button (trigger_print=1 on the
+	# A plain on-screen preview (or the in-dialog preview AJAX call) is not a
+	# print -- only these count: the on-screen "Print" button (trigger_print=1 on the
 	# /printview route) or an interactive Download PDF request, single or
 	# bulk. Detected here in before_print rather than via the `on_print_pdf`
 	# app hook because before_print fires for every render regardless of
 	# which pdf_generator is configured (wkhtmltopdf or chrome) -- when a
 	# custom pdf_generator hook is set (this site uses "chrome"), Frappe
 	# returns the PDF before ever calling on_print_pdf, so that hook never
-	# fired here and the lock was silently never consumed.
+	# fired here and prints were silently never counted.
 	actual = bool(frappe.form_dict.get("trigger_print")) or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
 	if not actual:
 		return
@@ -345,20 +331,19 @@ def _gate(doc, print_format):
 	# read-only) -- this flag is Frappe's own sanctioned way for a GET handler
 	# to say "I intentionally wrote data, please commit" (see e.g. CRM's
 	# crm.api: frappe.local.flags.commit = True). Without it, the write above
-	# would be silently discarded and the invoice would stay reprint-able
-	# forever, however many times before_print correctly detects the print.
+	# would be silently discarded and the print never counted.
 	frappe.local.flags.commit = True
 	frappe.flags.bp_print_done = doc.name
 
 
 def before_print(doc, method=None, print_settings=None):
 	"""doc_events hook — fires on every print/PDF render for a Sales Invoice,
-	regardless of pdf_generator. The sole enforcement point; see _gate()."""
+	regardless of pdf_generator. The only place direct prints are counted; see _gate()."""
 	_gate(doc, frappe.form_dict.get("format"))
 
 
 def _reset_allowed_roles():
-	"""Roles permitted to reset the print lock, read from BP Settings.
+	"""Roles permitted to reset a printed warehouse queue row, read from BP Settings.
 
 	System Manager is always allowed (safety net + they configure the list).
 	The default set is seeded by a patch; an admin can edit it freely."""
@@ -374,45 +359,8 @@ def _reset_allowed_roles():
 	return list(set(roles))
 
 
-def _reset_allowed_roles_label():
-	"""Role name(s) for the "Already Printed" message, built from the same
-	source as _reset_allowed_roles() so the wording never drifts from what BP
-	Settings actually allows (e.g. if the child table is left empty, the
-	message correctly names System Manager instead of a role nobody in that
-	state can use). No leading article ("a"/"an") so multi-word and plural
-	role names always read correctly in the "role to reset it" sentence."""
-	roles = sorted(_reset_allowed_roles())
-	if len(roles) == 1:
-		return roles[0]
-	return "{0} or {1}".format(", ".join(roles[:-1]), roles[-1])
-
-
-@frappe.whitelist()
-def print_lock_state():
-	"""Client helper -- BP Settings is System Manager-only, so the form asks here
-	whether the lock is on and whether this user may reset it."""
-	return {"enforced": enforced("enforce_print_once"), "can_reset": can_reset_print_lock()}
-
-
 @frappe.whitelist()
 def can_reset_print_lock():
-	"""Client helper — true if the current user holds an allowed reset role."""
+	"""Client helper: true if the current user may reset a warehouse queue row."""
 	allowed = set(_reset_allowed_roles())
 	return bool(allowed & set(frappe.get_roles()))
-
-
-@frappe.whitelist()
-def reset_print_lock(sales_invoice, reason=None):
-	"""Reset the print lock so the invoice can be printed once more.
-
-	Allowed roles are configured in BP Settings (Print Lock Reset Roles)."""
-	frappe.only_for(_reset_allowed_roles())
-
-	if not frappe.db.exists("Sales Invoice", sales_invoice):
-		frappe.throw(_("Sales Invoice {0} not found.").format(sales_invoice))
-
-	doc = frappe.get_doc("Sales Invoice", sales_invoice)
-	frappe.db.set_value("Sales Invoice", sales_invoice, "bp_print_status", "Not Printed", update_modified=False)
-	_log(doc, "Reset", remarks=(reason or "Print lock reset"))
-	frappe.db.commit()
-	return {"sales_invoice": sales_invoice, "bp_print_status": "Not Printed"}

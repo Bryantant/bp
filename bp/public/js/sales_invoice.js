@@ -43,7 +43,8 @@ bp.sales_invoice = {
 		frm.refresh_field("sales_team");
 	},
 
-	// Print-once control: status indicator, Print Log link, manager-only reset.
+	// Print status indicator and Print Log link. Printing from the invoice is free;
+	// print-once lives in the warehouse queue (Send to Warehouse below).
 	render_print_controls: function (frm) {
 		if (frm.doc.__islocal || frm.doc.docstatus !== 1) return;
 
@@ -60,55 +61,6 @@ bp.sales_invoice = {
 			__("Print Log"),
 			function () {
 				frappe.set_route("List", "BP Invoice Print Log", { sales_invoice: frm.doc.name });
-			},
-			__("Print")
-		);
-
-		// Reset button visibility is driven by BP Settings → Enforce Print Once and
-		// Print Lock Reset Roles. Ask the server (it's the source of truth and
-		// enforces on the call too). With the lock switched off there is nothing to reset.
-		if (frm.doc.bp_print_status === "Printed") {
-			frappe.xcall("bp.overrides.sales_invoice.print_lock_state").then(function (state) {
-				if (state.enforced && state.can_reset) {
-					bp.sales_invoice.add_reset_button(frm);
-				}
-			});
-		}
-	},
-
-	add_reset_button: function (frm) {
-		frm.add_custom_button(
-			__("Reset Print Lock"),
-			function () {
-				frappe.prompt(
-					[
-						{
-							fieldname: "reason",
-							fieldtype: "Small Text",
-							label: __("Reason"),
-							reqd: 1,
-						},
-					],
-					function (values) {
-						frappe.call({
-							method: "bp.overrides.sales_invoice.reset_print_lock",
-							args: { sales_invoice: frm.doc.name, reason: values.reason },
-							freeze: true,
-							freeze_message: __("Resetting print lock..."),
-							callback: function (r) {
-								if (!r.exc) {
-									frappe.show_alert({
-										message: __("Print lock reset. Invoice can be printed once more."),
-										indicator: "orange",
-									});
-									frm.reload_doc();
-								}
-							},
-						});
-					},
-					__("Reset Print Lock"),
-					__("Reset")
-				);
 			},
 			__("Print")
 		);
