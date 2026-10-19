@@ -113,28 +113,39 @@ def _matching_item_codes(filters):
 
 
 # ---------------------------------------------------------------------------
-# Purchase tab access
+# Purchase tab and HPP access
 #
 # The Purchase tab shows purchase prices and suppliers. Who may see it is set
 # in BP Settings > Inquiry Purchase Roles (seeded by
-# bp.patches.v1_0.seed_inquiry_purchase_roles); System Manager always may.
+# bp.patches.v1_0.seed_inquiry_purchase_roles). The HPP column (Balance and
+# Price List tabs, item detail) follows BP Settings > Inquiry HPP Roles, the
+# old program's "Inquiry Harga Pokok" right (seeded by
+# bp.patches.v1_0.seed_inquiry_hpp_roles). System Manager always sees both.
 # ---------------------------------------------------------------------------
-def can_view_purchase(user=None):
+def _has_inquiry_role(parentfield, user=None):
 	roles = set(frappe.get_roles(user or frappe.session.user))
 	if "System Manager" in roles:
 		return True
 	allowed = frappe.get_all(
 		"BP Inquiry Purchase Role",
-		filters={"parent": "BP Settings", "parentfield": "inquiry_purchase_roles"},
+		filters={"parent": "BP Settings", "parentfield": parentfield},
 		pluck="role",
 	)
 	return bool(roles.intersection(allowed))
 
 
+def can_view_purchase(user=None):
+	return _has_inquiry_role("inquiry_purchase_roles", user)
+
+
+def can_view_hpp(user=None):
+	return _has_inquiry_role("inquiry_hpp_roles", user)
+
+
 @frappe.whitelist()
 def get_context():
 	"""What the page needs before it draws its tabs."""
-	return {"show_purchase": can_view_purchase()}
+	return {"show_purchase": can_view_purchase(), "show_hpp": can_view_hpp()}
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +219,17 @@ def get_balance(filters=None):
 		{"label": _("HPP"), "fieldname": "hpp", "fieldtype": "Currency"},
 	]
 
-	return {"columns": columns, "data": list(by_item.values())}
+	return _strip_hpp({"columns": columns, "data": list(by_item.values())})
+
+
+def _strip_hpp(result):
+	"""Drop the HPP column and values for users without Inquiry HPP Roles."""
+	if can_view_hpp():
+		return result
+	result["columns"] = [c for c in result["columns"] if c["fieldname"] != "hpp"]
+	for row in result["data"]:
+		row.pop("hpp", None)
+	return result
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +350,7 @@ def get_price_list(filters=None):
 
 	item_codes = _matching_item_codes(filters)
 	if not item_codes:
-		return {"columns": _price_list_columns([]), "data": []}
+		return _strip_hpp({"columns": _price_list_columns([]), "data": []})
 
 	selling_lists = frappe.get_all(
 		"Price List",
@@ -395,7 +416,7 @@ def get_price_list(filters=None):
 			row["ccy"] = p.currency
 		row[p.price_list] = flt(p.price_list_rate)
 
-	return {"columns": _price_list_columns(selling_lists), "data": list(by_key.values())}
+	return _strip_hpp({"columns": _price_list_columns(selling_lists), "data": list(by_key.values())})
 
 
 def _price_list_columns(selling_lists):
@@ -477,12 +498,14 @@ def get_item_detail(item_code):
 		if not row.get("ccy"):
 			row["ccy"] = p.currency
 
-	return {
+	detail = {
 		"item_code": item.item_code,
 		"item_name": item.item_name,
 		"stock_uom": item.stock_uom,
-		"hpp": flt(item.valuation_rate),
 		"image": item.image,
 		"price_lists": selling_lists,
 		"uoms": list(uom_rows.values()),
 	}
+	if can_view_hpp():
+		detail["hpp"] = flt(item.valuation_rate)
+	return detail

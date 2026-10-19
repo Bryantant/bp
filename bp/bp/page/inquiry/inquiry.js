@@ -219,7 +219,7 @@ bp.Inquiry = class Inquiry {
 					</h5>
 					<div class="text-muted" style="margin-bottom: 10px;">
 						${__('Stock UOM')}: ${frappe.utils.escape_html(detail.stock_uom || '')}
-						&nbsp;|&nbsp; ${__('HPP')}: ${num(detail.hpp)}
+						${detail.hpp !== undefined ? `&nbsp;|&nbsp; ${__('HPP')}: ${num(detail.hpp)}` : ''}
 					</div>
 					<table class="table table-bordered" style="max-width: 720px;">
 						<thead><tr><th>Unit</th><th class="text-right">Pack</th><th>Ccy</th>
