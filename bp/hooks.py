@@ -32,7 +32,7 @@ app_include_css = ["/assets/bp/css/custom.css"]
 # served with max-age=43200, and a plain path would leave returning visitors on
 # a 12-hour-stale copy after every deploy. Run `bench build --app bp` on change.
 web_include_css = ["/assets/bp/css/custom.css", "storefront.bundle.css"]
-app_include_js = ["desk_overrides.bundle.js", "discount_utils.bundle.js"]
+app_include_js = ["bp_desk_overrides.bundle.js", "discount_utils.bundle.js"]
 web_include_js = ["storefront.bundle.js"]
 extend_bootinfo = "bp.boot.boot_session"
 
