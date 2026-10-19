@@ -1,7 +1,9 @@
 frappe.provide("bp.discounts");
 
 // Four-step cascading discount shared by the Sales Invoice Item and Sales
-// Order Item grids (public/js/sales_invoice.js, public/js/sales_order.js).
+// Order Item grids (public/js/sales_invoice.js, public/js/sales_order.js), and
+// the Purchase Invoice/Order Item grids, which only have Discount 1 (the
+// missing Discount 2 fields read as 0).
 // Mirrors bp.utils.cascading_discount.calculate_cascading_discount on the
 // server, which is the authoritative recompute on save -- this is for live
 // UX only.

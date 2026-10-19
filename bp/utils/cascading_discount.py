@@ -1,5 +1,6 @@
 """Four-step cascading discount math shared by Sales Invoice Item and Sales
-Order Item.
+Order Item, and by Purchase Invoice Item and Purchase Order Item, which only
+have the two Discount 1 fields (the missing Discount 2 fields read as 0).
 
 Each of the four fields is its own step, applied in this order to the price
 left by the step before it:
@@ -66,7 +67,7 @@ def has_cascading_discount(item):
 
 
 def recalculate_cascading_discount(doc, method=None):
-	"""Server-side recompute for Sales Invoice and Sales Order items.
+	"""Server-side recompute for Sales/Purchase Invoice and Sales/Purchase Order items.
 
 	Runs on every save (before_validate, see hooks.py) so saves that skip the
 	browser (REST, Data Import) still get the cascaded rate. The four discount
