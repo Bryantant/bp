@@ -63,7 +63,10 @@ fixtures = [{"dt": "Client Script", "filters": [["name", "not like", "Hicom -%"]
 # include js in doctype views
 doctype_js = {
 	"Stock Entry": "public/js/stock_entry.js",
-	"Sales Invoice": "public/js/sales_invoice.js",
+	"Sales Invoice": ["public/js/sales_invoice.js", "public/js/update_stock_lock.js"],
+	"Purchase Invoice": ["public/js/purchase_invoice.js", "public/js/update_stock_lock.js"],
+	"Purchase Order": "public/js/purchase_order.js",
+	"POS Invoice": "public/js/update_stock_lock.js",
 	"Sales Order": "public/js/sales_order.js",
 	"Customer": "public/js/customer.js",
 }
@@ -97,10 +100,15 @@ doctype_js = {
 # ----------
 
 # add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "bp.utils.jinja_methods",
-# 	"filters": "bp.utils.jinja_filters"
-# }
+# code128_svg: barcode of the invoice name on the Sales Invoice / Delivery Order prints (HT-42)
+# bp_paginate / bp_item_line: lines per 9.5 x 5.5 in continuous-form page, one row per line, same prints
+jinja = {
+	"methods": [
+		"bp.utils.barcode.code128_svg",
+		"bp.utils.print_layout.bp_paginate",
+		"bp.utils.print_layout.bp_item_line",
+	],
+}
 
 # Installation
 # ------------
@@ -113,6 +121,7 @@ doctype_js = {
 after_migrate = [
 	"bp.setup.inquiry_sidebar.add_inquiry_links",
 	"bp.setup.stock_mutation_sidebar.add_stock_mutation_links",
+	"bp.setup.invoice_kembali_sidebar.add_invoice_kembali_links",
 ]
 
 # Uninstallation
@@ -178,13 +187,27 @@ after_migrate = [
 doc_events = {
 	"Sales Invoice": {
 		"before_naming": "bp.overrides.sales_invoice.before_naming",
-		"validate": "bp.overrides.sales_invoice.validate",
+		"validate": [
+			"bp.overrides.sales_invoice.validate",
+			"bp.overrides.update_stock_lock.validate",
+		],
 		"before_validate": "bp.overrides.sales_invoice.recalculate_cascading_discount",
 		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",
 		"before_print": "bp.overrides.sales_invoice.before_print",
 	},
 	"Purchase Invoice": {
 		"before_naming": "bp.overrides.purchase_invoice.before_naming",
+		"before_validate": [
+			"bp.overrides.purchase_invoice.before_validate",
+			"bp.utils.cascading_discount.recalculate_cascading_discount",
+		],
+		"validate": "bp.overrides.update_stock_lock.validate",
+	},
+	"Purchase Order": {
+		"before_validate": "bp.utils.cascading_discount.recalculate_cascading_discount",
+	},
+	"POS Invoice": {
+		"validate": "bp.overrides.update_stock_lock.validate",
 	},
 	"Sales Order": {
 		"before_validate": "bp.overrides.sales_order.recalculate_cascading_discount",
@@ -193,6 +216,7 @@ doc_events = {
 		"validate": "bp.overrides.payment_entry.validate",
 	},
 	"Stock Entry": {
+		"before_naming": "bp.overrides.stock_entry.before_naming",
 		"validate": "bp.overrides.stock_entry.validate",
 	},
 	"Customer": {
@@ -248,6 +272,11 @@ naming_series_variables = {
 # override_whitelisted_methods = {
 # 	"frappe.desk.doctype.event.event.get_events": "bp.event.get_events"
 # }
+# Purchases start from the supplier's last price (bp.utils.last_purchase_price).
+override_whitelisted_methods = {
+	"erpnext.stock.get_item_details.get_item_details": "bp.utils.last_purchase_price.get_item_details",
+	"erpnext.stock.get_item_details.apply_price_list": "bp.utils.last_purchase_price.apply_price_list",
+}
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,

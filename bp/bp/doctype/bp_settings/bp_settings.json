@@ -10,9 +10,11 @@
   "print_lock_formats",
   "inquiry_section",
   "inquiry_purchase_roles",
+  "inquiry_hpp_roles",
   "invoice_control_section",
   "enforce_credit_limit",
   "enforce_active_invoice_limit",
+  "invoice_kembali_start_date",
   "sales_invoice_import_section",
   "import_placeholder_item",
   "legacy_import_section",
@@ -62,6 +64,13 @@
    "options": "BP Inquiry Purchase Role"
   },
   {
+   "description": "Role yang boleh melihat kolom HPP (harga pokok) di halaman Inquiry, setara hak Inquiry Harga Pokok di program lama. System Manager selalu bisa melihat.",
+   "fieldname": "inquiry_hpp_roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Inquiry HPP Roles",
+   "options": "BP Inquiry Purchase Role"
+  },
+  {
    "fieldname": "invoice_control_section",
    "fieldtype": "Section Break",
    "label": "Invoice Controls"
@@ -79,6 +88,12 @@
    "fieldname": "enforce_active_invoice_limit",
    "fieldtype": "Check",
    "label": "Enforce Active Invoice Limit"
+  },
+  {
+   "description": "Sales Invoices dated before this are left out of the report Invoice Belum Kembali (invoices from before go-live). Scanning them back in is still allowed.",
+   "fieldname": "invoice_kembali_start_date",
+   "fieldtype": "Date",
+   "label": "Invoice Kembali Start Date"
   },
   {
    "fieldname": "sales_invoice_import_section",
@@ -170,7 +185,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-17 00:00:00",
+ "modified": "2026-10-19 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",

@@ -36,3 +36,25 @@ input[type="checkbox"]:checked {
   background: #4a2d9d !important;
   border-color: #4a2d9d !important;
 }
+
+/* v16 renders page and dialog buttons as Espresso `.es-button` (no `.btn` class), coloured
+   through these variables, so the `.btn` rules above no longer reach Save, Submit, Actions
+   or dialog primaries. Red (danger) buttons keep their own theme. */
+.es-button:not([data-theme="red"]) {
+  --bt-solid-bg: #5c38b4;
+  --bt-solid-bg-hover: #4a2d9d;
+  --bt-solid-bg-active: #4a2d9d;
+  --bt-solid-fg: #ffffff;
+}
+
+
+/* v16 shows the currency symbol inside editable grid Currency inputs (absolute, left: 8px)
+   but pads the text by only calc(4px + 1em), room for a one-character symbol. IDR's "Rp"
+   is two characters, so it overlapped the amount once a row got a value (e.g. after picking
+   an item). Pad for symbols up to ~3 characters. */
+body .grid-row .grid-currency-input.grid-currency-has-value:not(.grid-currency-symbol-right) .form-control {
+  padding-left: calc(12px + 1.4em);
+}
+body .grid-row .grid-currency-input.grid-currency-has-value.grid-currency-symbol-right .form-control {
+  padding-right: calc(12px + 1.4em);
+}

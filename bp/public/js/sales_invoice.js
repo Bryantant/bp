@@ -6,6 +6,8 @@ frappe.ui.form.on("Sales Invoice", {
 		bp.sales_invoice.sync_from_table(frm);
 		bp.sales_invoice.render_print_controls(frm);
 		bp.sales_invoice.add_send_to_warehouse(frm);
+		bp.sales_invoice.set_default_print_format(frm);
+		bp.sales_invoice.patch_print_view();
 	},
 
 	bp_sales_person: function (frm) {
@@ -22,6 +24,38 @@ bp.discounts.bindItemGrid("Sales Invoice Item");
 frappe.provide("bp.sales_invoice");
 
 bp.sales_invoice = {
+	// A return with goods prints on the "Retur Penjualan" format (legacy sales
+	// return print); every other invoice keeps the doctype default ("Invoice").
+	// The print view reads frm.meta.default_print_format, which is shared by every
+	// Sales Invoice form, so the doctype default is kept and put back.
+	set_default_print_format: function (frm) {
+		if (frm.meta.__bp_default_print_format === undefined) {
+			frm.meta.__bp_default_print_format = frm.meta.default_print_format;
+		}
+		frm.meta.default_print_format =
+			frm.doc.is_return && frm.doc.update_stock
+				? "Retur Penjualan"
+				: frm.meta.__bp_default_print_format;
+	},
+
+	// The print page keeps the format picked last when it is still valid, so an
+	// invoice printed before a return would leave "Invoice" selected. For a
+	// Sales Invoice always start from the default set above (the user can still
+	// pick another). PrintView exists once the print page has been opened; until
+	// then the selector is empty and Frappe applies the default by itself.
+	patch_print_view: function () {
+		var PrintView = frappe.ui.form.PrintView;
+		if (!PrintView || PrintView.prototype.__bp_patched) return;
+		var original = PrintView.prototype.set_default_print_format;
+		PrintView.prototype.set_default_print_format = function () {
+			if (this.frm && this.frm.doctype === "Sales Invoice" && this.frm.meta.__bp_default_print_format !== undefined) {
+				return this.set_print_format_value(this.frm.meta.default_print_format || "");
+			}
+			return original.apply(this, arguments);
+		};
+		PrintView.prototype.__bp_patched = true;
+	},
+
 	// On load: read the first row of sales_team → populate the dropdown.
 	// Handles saved/amended docs so the dropdown always reflects stored data.
 	sync_from_table: function (frm) {

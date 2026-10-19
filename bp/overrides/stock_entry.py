@@ -2,7 +2,8 @@
 
 DIPIN confirmed on WhatsApp 2026-10-08 (task HT-8): sales admins may only
 relocate stock between warehouses; the accounting team may use every type.
-A user is "sales only" when they hold Sales User but none of the roles that
+A user is "sales only" when they hold a sales role (Sales User, or BP Sales
+User, the trimmed copy for sales admins, 2026-10-19) but none of the roles that
 already had full Stock Entry access or the accounting roles below. Such a
 user may only post the Material Transfer purpose (type "Relokasi Barang").
 """
@@ -10,7 +11,9 @@ user may only post the Material Transfer purpose (type "Relokasi Barang").
 import frappe
 from frappe import _
 
-SALES_ROLE = "Sales User"
+from bp.patches.v1_0.apply_document_numbering_oct15 import STOCK_ENTRY_SERIES
+
+SALES_ROLES = {"Sales User", "BP Sales User"}
 FULL_ACCESS_ROLES = {
 	"Stock User",
 	"Stock Manager",
@@ -25,7 +28,7 @@ SALES_PURPOSE = "Material Transfer"
 
 def is_sales_only(user=None):
 	roles = set(frappe.get_roles(user))
-	return SALES_ROLE in roles and not roles & FULL_ACCESS_ROLES
+	return bool(roles & SALES_ROLES) and not roles & FULL_ACCESS_ROLES
 
 
 def validate(doc, method=None):
@@ -41,3 +44,14 @@ def validate(doc, method=None):
 @frappe.whitelist()
 def get_sales_entry_type():
 	return frappe.db.get_value("Stock Entry Type", {"purpose": SALES_PURPOSE}, "name", order_by="name asc")
+
+
+def before_naming(doc, method=None):
+	"""Number by type (meeting 2026-10-15): MI Barang Masuk, MO Barang Keluar,
+	MA Rakit Set, MR Relokasi Barang. A purpose outside the four keeps the
+	series it came with."""
+	if doc.naming_series and doc.naming_series not in STOCK_ENTRY_SERIES.values():
+		return
+	series = STOCK_ENTRY_SERIES.get(doc.purpose)
+	if series:
+		doc.naming_series = series

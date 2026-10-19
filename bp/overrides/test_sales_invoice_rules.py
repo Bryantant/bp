@@ -2,7 +2,8 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from bp.overrides.sales_invoice import before_naming, get_warehouse_name_code
-from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
+from bp.patches.v1_0.allow_non_stock_sales_invoices import WAREHOUSE_SERIES
+from bp.patches.v1_0.apply_document_numbering_oct15 import SALES_INVOICE_SERIES_OCT15, SALES_NON_STOCK_SERIES_OCT15
 
 
 def invoice(**kw):
@@ -21,19 +22,19 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		warehouse-based series has nothing to resolve."""
 		doc = invoice(update_stock=0, set_warehouse=None)
 		before_naming(doc)
-		self.assertEqual(doc.naming_series, NON_STOCK_SERIES)
+		self.assertEqual(doc.naming_series, SALES_NON_STOCK_SERIES_OCT15)
 
 	def test_goods_invoice_keeps_the_warehouse_series(self):
 		doc = invoice()
 		before_naming(doc)
-		self.assertEqual(doc.naming_series, WAREHOUSE_SERIES)
+		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
 
 	def test_update_stock_decides_not_the_empty_warehouse(self):
 		"""A goods invoice with an empty header warehouse keeps the warehouse
 		series; the code comes from its item rows."""
 		doc = invoice(set_warehouse=None)
 		before_naming(doc)
-		self.assertEqual(doc.naming_series, WAREHOUSE_SERIES)
+		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
 
 	def test_a_series_picked_deliberately_is_left_alone(self):
 		doc = invoice(update_stock=0, set_warehouse=None, naming_series="ACC-SINV-.YYYY.-")

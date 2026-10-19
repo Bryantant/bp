@@ -3,7 +3,14 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from frappe import _
 from frappe.utils import cint, now_datetime
 
-from bp.patches.v1_0.allow_non_stock_sales_invoices import NON_STOCK_SERIES, WAREHOUSE_SERIES
+from bp.patches.v1_0.allow_non_stock_sales_invoices import WAREHOUSE_SERIES
+from bp.patches.v1_0.apply_document_numbering_oct15 import (
+	SALES_CREDIT_NOTE_SERIES,
+	SALES_DEBIT_NOTE_SERIES,
+	SALES_INVOICE_SERIES_OCT15,
+	SALES_NON_STOCK_SERIES_OCT15,
+	SALES_RETURN_SERIES_OCT15,
+)
 from bp.patches.v1_0.name_invoices_and_returns_by_warehouse import SALES_RETURN_SERIES
 from bp.utils.cascading_discount import recalculate_cascading_discount as _recalculate_cascading_discount
 
@@ -82,13 +89,19 @@ def before_naming(doc, method=None):
 	The default series is built from the Source Warehouse
 	(get_warehouse_name_code below), which a value-only invoice -- an AR debit
 	note charging a principal for a promo claim, say -- does not have. Those
-	get NON_STOCK_SERIES instead; see
+	get SALES_NON_STOCK_SERIES_OCT15 (ND-26100001, meeting 2026-10-15; earlier
+	ones keep NDB-26-0001) instead; see
 	bp.patches.v1_0.allow_non_stock_sales_invoices.
 
 	Runs on insert only, before the name is generated, and only matters when
 	the user has not picked a series by hand.
 	"""
-	if doc.naming_series and doc.naming_series not in (WAREHOUSE_SERIES, SALES_RETURN_SERIES):
+	if doc.naming_series and doc.naming_series not in (
+		SALES_INVOICE_SERIES_OCT15,
+		WAREHOUSE_SERIES,
+		SALES_RETURN_SERIES,
+		SALES_RETURN_SERIES_OCT15,
+	):
 		# Somebody picked a series deliberately (API, Data Import, an amended
 		# document): leave it. Only the default, which Frappe fills in from the
 		# first option, is ours to change.
@@ -102,14 +115,23 @@ def before_naming(doc, method=None):
 	# Update Stock is the deciding flag, not an empty Source Warehouse: a goods
 	# invoice may leave the header empty and carry the warehouse on its rows
 	# (get_warehouse_name_code reads it from there).
-	if not doc.update_stock:
-		doc.naming_series = NON_STOCK_SERIES
+	if doc.get("is_debit_note"):
+		# Nota Debet AR (meeting 2026-10-15): AR-ND-26100001.
+		doc.naming_series = SALES_DEBIT_NOTE_SERIES
+	elif doc.is_return and not doc.update_stock:
+		# Nota Kredit AR, a return that moves no goods: AR-NC-26100001.
+		doc.naming_series = SALES_CREDIT_NOTE_SERIES
+	elif not doc.update_stock:
+		doc.naming_series = SALES_NON_STOCK_SERIES_OCT15
 	elif doc.is_return:
-		# Same warehouse code with SR in front and its own counter, so a
-		# return can be told apart from a sale by its name (SRA26090001).
-		doc.naming_series = SALES_RETURN_SERIES
+		# Same warehouse code with SR- in front and its own counter, so a
+		# return can be told apart from a sale by its name (SR-A26100001,
+		# meeting 2026-10-15; earlier returns keep SRA26090001).
+		doc.naming_series = SALES_RETURN_SERIES_OCT15
 	else:
-		doc.naming_series = WAREHOUSE_SERIES
+		# INV- + warehouse code (Bry 2026-10-17): INV-A26100001. Earlier
+		# invoices keep A26100002.
+		doc.naming_series = SALES_INVOICE_SERIES_OCT15
 
 
 def validate(doc, method=None):
