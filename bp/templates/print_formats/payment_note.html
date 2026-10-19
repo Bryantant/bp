@@ -1,0 +1,186 @@
+{#- "Payment Note" print format for Payment Entry -- recreates the legacy Access
+    receipt/payment notes (PrtRNForm "Receiving Note" for customer receipts,
+    PrtPNForm "Payment Note" for supplier payments; sample Image/Payment Note.pdf
+    in the BP client folder). Title follows payment_type.
+
+    One line per allocated reference (invoice / order), then one line per
+    deduction row and one for any unallocated amount. Row 2 under a line holds
+    "Bank :" + reference no and date (red, underlined, as in the legacy print).
+    Totals per currency, the note and three signature boxes sit at the bottom of
+    the last page, as the legacy page footer did. Long payments run over more
+    A4 sheets, each with the full header and Page x / N.
+
+    Pure Jinja/HTML; CSS in payment_note.css. Installed by
+    bp/patches/v1_0/create_document_print_formats.py. -#}
+
+{#- Company header: doc.company_address if set, else the company's own
+    is_your_company_address Address (most invoices predate company_address
+    being populated) -- built from raw address fields, not address_display,
+    to match the legacy plain-text layout.
+
+    NOTE: uses namespace() because plain {% set %} assignments made inside a
+    {% for %} loop don't propagate back out to the surrounding scope in
+    Jinja2 -- a real footgun if you're used to Python's loop scoping. Any
+    future edit that needs to "find something in a loop and use it after"
+    must follow the same namespace(...) pattern, not a bare {% set %}. -#}
+{% set _addr_ns = namespace(doc=None) %}
+{% if doc.company_address %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
+{% else %}
+	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
+	{% for _addr_name in _addr_links %}
+		{% if not _addr_ns.doc and frappe.db.get_value("Address", _addr_name, "is_your_company_address") %}
+			{% set _addr_ns.doc = frappe.get_cached_doc("Address", _addr_name) %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+{% set company_address = _addr_ns.doc %}
+{% set _address_parts = [] %}
+{% if company_address %}
+	{% if company_address.address_line1 %}{% set _address_parts = _address_parts + [company_address.address_line1] %}{% endif %}
+	{% if company_address.address_line2 %}{% set _address_parts = _address_parts + [company_address.address_line2] %}{% endif %}
+	{% if company_address.city %}{% set _address_parts = _address_parts + [(company_address.city ~ " " ~ (company_address.pincode or ""))|trim] %}{% endif %}
+	{% if company_address.country %}{% set _address_parts = _address_parts + [company_address.country] %}{% endif %}
+{% endif %}
+{% set company_address_line = _address_parts|join(", ") %}
+{% set _contact_parts = [] %}
+{% if company_address and company_address.phone %}{% set _contact_parts = _contact_parts + ["Tel. : " ~ company_address.phone] %}{% endif %}
+{% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
+{% set company_contact_line = _contact_parts|join(", ") %}
+
+
+{% set is_receive = doc.payment_type == "Receive" %}
+{% set title = "Receiving Note" if is_receive else ("Payment Note" if doc.payment_type == "Pay" else "Transfer Note") %}
+{% set bank_account = doc.paid_to if is_receive else doc.paid_from %}
+{% set method = frappe.db.get_value("Account", bank_account, "account_name") if bank_account else (doc.mode_of_payment or "") %}
+{% set pay_ccy = doc.paid_to_account_currency if is_receive else doc.paid_from_account_currency %}
+{% set party_ccy = doc.paid_from_account_currency if is_receive else doc.paid_to_account_currency %}
+{% set rate = (doc.source_exchange_rate if is_receive else doc.target_exchange_rate) or 1 %}
+{% set pay_rate = (doc.target_exchange_rate if is_receive else doc.source_exchange_rate) or 1 %}
+{#- party amount -> payment currency amount -#}
+{% set conv = (rate / pay_rate) if pay_rate else 1 %}
+{% set shown_rate = conv if conv >= 1 else ((1 / conv) if conv else 1) %}
+{% set party_label = (doc.party_type or "Party") %}
+
+{#- Lines first, pages after: every printed line (reference, unallocated,
+    deduction) becomes a dict with its height in px (bp_px), then bp_paginate
+    (bp/utils/print_layout.py) splits them over A4 sheets. Each sheet repeats
+    the header with Page x / N; totals, note and signatures go at the bottom of
+    the last one. Heights are tuned to payment_note.css: a line is 17.3 px, a
+    line with the Bank row under it 38.6 px. page_px is the room for lines on a
+    full sheet, last_page_px the room left beside the bottom block. Re-check
+    both after changing fonts, header or footer. -#}
+{% set ns = namespace(lines=[], inv_total=0, pay_total=0) %}
+{% set _has_row2 = doc.reference_no or doc.reference_date %}
+{% for ref in doc.references %}
+	{% set _ref_date = frappe.db.get_value(ref.reference_doctype, ref.reference_name, "posting_date" if ref.reference_doctype in ["Sales Invoice", "Purchase Invoice", "Journal Entry"] else "transaction_date") %}
+	{% set _desc = "Invoice" %}
+	{% if ref.reference_doctype in ["Sales Invoice", "Purchase Invoice"] %}
+		{% if frappe.db.get_value(ref.reference_doctype, ref.reference_name, "is_return") %}{% set _desc = "Credit Note" %}
+		{% elif ref.reference_doctype == "Sales Invoice" and frappe.db.get_value("Sales Invoice", ref.reference_name, "is_debit_note") %}{% set _desc = "Debit Note" %}{% endif %}
+	{% elif ref.reference_doctype in ["Sales Order", "Purchase Order"] %}{% set _desc = "Advance" %}
+	{% else %}{% set _desc = ref.reference_doctype %}{% endif %}
+	{% set _paid_with = (ref.allocated_amount or 0) * conv %}
+	{% set ns.inv_total = ns.inv_total + (ref.allocated_amount or 0) %}
+	{% set ns.pay_total = ns.pay_total + _paid_with %}
+	{% set ns.lines = ns.lines + [{"kind": "ref", "inv": ref.reference_name, "date": _ref_date, "desc": _desc,
+		"amount": ref.allocated_amount or 0, "paid_with": _paid_with, "bp_px": 38.6 if _has_row2 else 17.3}] %}
+{% endfor %}
+{% if doc.unallocated_amount %}
+	{% set ns.inv_total = ns.inv_total + doc.unallocated_amount %}
+	{% set ns.pay_total = ns.pay_total + doc.unallocated_amount * conv %}
+	{% set ns.lines = ns.lines + [{"kind": "unallocated", "amount": doc.unallocated_amount,
+		"paid_with": doc.unallocated_amount * conv, "bp_px": 17.3}] %}
+{% endif %}
+{% for d in doc.deductions %}
+	{% set ns.pay_total = ns.pay_total + (d.amount or 0) %}
+	{% set ns.lines = ns.lines + [{"kind": "deduction", "desc": d.description or "Deduction", "paid_with": d.amount or 0,
+		"method": frappe.db.get_value("Account", d.account, "account_name") or d.account, "bp_px": 17.3}] %}
+{% endfor %}
+{% set pages = bp_paginate(ns.lines, page_px=890, last_page_px=720) %}
+
+{% for page in pages %}
+<div class="bp-legacy-format bp-note-doc{% if not loop.last %} bp-sheet-break{% endif %}">
+	<div class="bp-main">
+		<div class="bp-hdr">
+			<div class="bp-hdr-left">
+				<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+				<div class="bp-company-addr">{{ company_address_line }}<br>{{ company_contact_line }}</div>
+			</div>
+			<div class="bp-hdr-right">
+				<div class="bp-title">{{ title }}</div>
+				<div class="bp-docno">{{ doc.name }}</div>
+				<table class="bp-dp"><tr><td>Date :</td><td>{{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
+				<tr><td>Page :</td><td>{{ loop.index }} / {{ pages|length }}</td></tr></table>
+			</div>
+		</div>
+
+		<table class="items-table">
+			<colgroup>
+				<col class="c-no"><col class="c-inv"><col class="c-date"><col class="c-desc"><col class="c-ccy">
+				<col class="c-amt"><col class="c-ccy"><col class="c-amt"><col class="c-rate"><col class="c-method">
+			</colgroup>
+			<thead><tr>
+				<th>No.</th><th>Inv./ DN</th><th>Date</th><th>Description</th><th>Ccy</th><th>Paid Amount</th>
+				<th>Ccy</th><th>Paid With</th><th>Rate</th><th class="bp-th-plain">Payment Method</th>
+			</tr></thead>
+			{% for idx, line in page %}
+			<tbody>
+				{% if line.kind == "ref" %}
+				<tr>
+					<td class="bp-ctr">{{ idx }}</td><td class="bp-ctr">{{ line.inv }}</td>
+					<td class="bp-ctr">{{ frappe.utils.formatdate(line.date, "dd-MMM-yy") if line.date else "" }}</td>
+					<td>{{ line.desc }}</td><td class="bp-ctr">{{ party_ccy }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(line.amount, precision=2) }}</td>
+					<td class="bp-ctr">{{ pay_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(line.paid_with, precision=2) }}</td>
+					<td class="bp-num">{{ "%.4f"|format(shown_rate) }}</td><td class="bp-ctr">{{ method }}</td>
+				</tr>
+				{% if _has_row2 %}
+				<tr class="bp-row2">
+					<td colspan="4" class="bp-num">{% if not is_receive %}<b class="bp-u">Bank :</b>{% endif %}</td>
+					<td colspan="3" class="bp-u">{{ doc.bank_account or "" }}</td>
+					<td class="bp-red">{{ doc.reference_no or "" }}</td>
+					<td></td>
+					<td class="bp-red">{{ frappe.utils.formatdate(doc.reference_date, "dd-MMM-yy") if doc.reference_date else "" }}</td>
+				</tr>
+				{% endif %}
+				{% elif line.kind == "unallocated" %}
+				<tr>
+					<td class="bp-ctr">{{ idx }}</td><td></td><td></td><td>Unallocated</td><td class="bp-ctr">{{ party_ccy }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(line.amount, precision=2) }}</td>
+					<td class="bp-ctr">{{ pay_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(line.paid_with, precision=2) }}</td>
+					<td class="bp-num">{{ "%.4f"|format(shown_rate) }}</td><td class="bp-ctr">{{ method }}</td>
+				</tr>
+				{% else %}
+				<tr>
+					<td class="bp-ctr">{{ idx }}</td><td></td><td></td><td>{{ line.desc }}</td><td></td><td></td>
+					<td class="bp-ctr">{{ doc.company_currency or pay_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(line.paid_with, precision=2) }}</td>
+					<td></td><td class="bp-ctr">{{ line.method }}</td>
+				</tr>
+				{% endif %}
+			</tbody>
+			{% endfor %}
+		</table>
+	</div>
+
+	{% if loop.last %}
+	<div class="bp-foot">
+		<div class="bp-foot-top">
+			<div class="bp-party"><b>{{ "Customer" if doc.party_type == "Customer" else ("Supplier" if doc.party_type == "Supplier" else party_label) }}&nbsp;&nbsp;: {{ doc.party or "" }}</b><br><b>{{ doc.party_name or "" }}</b></div>
+			<div class="bp-total-label">Total</div>
+			<div class="bp-total-box">
+				<table><tr><td class="bp-tccy">{{ party_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.inv_total, precision=2) }}</td></tr></table>
+			</div>
+			<div class="bp-total-box">
+				<table><tr><td class="bp-tccy">{{ pay_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.pay_total, precision=2) }}</td></tr></table>
+			</div>
+		</div>
+		<div class="bp-foot-rule"></div>
+		<table class="bp-sign-boxes"><tr>
+			<td class="bp-note-box"><b>Note :</b><br>{{ (doc.custom_note or "")|e|replace("\n", "<br>")|safe }}</td>
+			<td>Approved by,</td><td>Prepared by,</td><td>Received by,</td>
+		</tr></table>
+	</div>
+	{% endif %}
+</div>
+{% endfor %}

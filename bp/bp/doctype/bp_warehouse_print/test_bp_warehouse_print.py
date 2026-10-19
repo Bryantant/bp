@@ -17,7 +17,7 @@ def _events(name):
 
 @patch(f"{MODULE}._force_commit")  # never commit test data from the Blocked path
 @patch(f"{MODULE}.frappe.get_print", return_value=FAKE_PDF)
-@patch(f"{MODULE}._locked_formats", return_value={"Sales Invoice", "Surat Jalan"})
+@patch(f"{MODULE}._locked_formats", return_value={"Invoice", "Delivery Order"})
 class TestBPWarehousePrint(UnitTestCase):
 	"""Runs against the site's real data inside one transaction that is rolled
 	back at the end. UnitTestCase, not IntegrationTestCase: the latter builds
@@ -37,7 +37,7 @@ class TestBPWarehousePrint(UnitTestCase):
 		frappe.set_user("Administrator")
 		frappe.local.response = frappe._dict()
 		self._formats = patch(
-			"bp.overrides.sales_invoice._locked_formats", return_value={"Sales Invoice", "Surat Jalan"}
+			"bp.overrides.sales_invoice._locked_formats", return_value={"Invoice", "Delivery Order"}
 		)
 		self._formats.start()
 
@@ -45,7 +45,7 @@ class TestBPWarehousePrint(UnitTestCase):
 		self._formats.stop()
 		frappe.set_user("Administrator")
 
-	def _send(self, print_format="Surat Jalan"):
+	def _send(self, print_format="Delivery Order"):
 		return wp.send_to_warehouse(self.invoice, print_format)
 
 	def test_send_queues_a_pending_row_and_logs_it(self, *_):
@@ -65,7 +65,7 @@ class TestBPWarehousePrint(UnitTestCase):
 		if not draft:
 			self.skipTest("no draft Sales Invoice on this site")
 		with self.assertRaises(frappe.ValidationError):
-			wp.send_to_warehouse(draft, "Surat Jalan")
+			wp.send_to_warehouse(draft, "Delivery Order")
 
 	def test_first_print_uses_up_the_row(self, _formats, get_print, _commit):
 		name = self._send()
@@ -76,7 +76,7 @@ class TestBPWarehousePrint(UnitTestCase):
 		self.assertEqual(row.printed_by, "Administrator")
 		self.assertEqual(frappe.local.response.filecontent, FAKE_PDF)
 		self.assertEqual(frappe.local.response.type, "pdf")
-		get_print.assert_called_once_with("Sales Invoice", self.invoice, "Surat Jalan", as_pdf=True)
+		get_print.assert_called_once_with("Sales Invoice", self.invoice, "Delivery Order", as_pdf=True)
 		# the printed-by stamp on the copy comes from these invoice fields
 		self.assertEqual(
 			frappe.db.get_value("Sales Invoice", self.invoice, "bp_last_printed_by"), "Administrator"
@@ -115,7 +115,7 @@ class TestBPWarehousePrint(UnitTestCase):
 		second = self._send()
 		self.assertNotEqual(first, second)
 		self.assertEqual(frappe.db.get_value("BP Warehouse Print", second, "status"), "Pending")
-		history = wp.send_history(self.invoice)["history"]["Surat Jalan"]
+		history = wp.send_history(self.invoice)["history"]["Delivery Order"]
 		self.assertGreaterEqual(history["sent"], 2)
 		self.assertGreaterEqual(history["pending"], 1)
 

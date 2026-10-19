@@ -28,24 +28,24 @@ class TestPrintLockFormats(UnitTestCase):
 
 	@patch(f"{MODULE}.frappe.db.set_value")
 	@patch(f"{MODULE}._log")
-	@patch(f"{MODULE}._locked_formats", return_value={"Sales Invoice"})
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
 	def test_reprint_of_a_listed_format_is_logged_not_blocked(self, _formats, log, set_value):
 		frappe.form_dict.trigger_print = 1
-		si._gate(_printed_invoice(), "Sales Invoice")
+		si._gate(_printed_invoice(), "Invoice")
 		log.assert_called_once()
 		self.assertEqual(set_value.call_args[0][2]["bp_print_count"], 2)
 
 	@patch(f"{MODULE}.frappe.db.set_value")
 	@patch(f"{MODULE}._log")
-	@patch(f"{MODULE}._locked_formats", return_value={"Sales Invoice"})
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
 	def test_preview_is_not_counted(self, _formats, log, set_value):
-		si._gate(_printed_invoice(), "Sales Invoice")
+		si._gate(_printed_invoice(), "Invoice")
 		log.assert_not_called()
 		set_value.assert_not_called()
 
 	@patch(f"{MODULE}.frappe.db.set_value")
 	@patch(f"{MODULE}._log")
-	@patch(f"{MODULE}._locked_formats", return_value={"Sales Invoice"})
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
 	def test_unlisted_format_leaves_no_trail(self, _formats, log, set_value):
 		frappe.form_dict.trigger_print = 1
 		si._gate(_printed_invoice(), "Debit Note")

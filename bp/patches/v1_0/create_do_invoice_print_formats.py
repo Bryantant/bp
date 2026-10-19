@@ -1,4 +1,4 @@
-"""Create/refresh the "Sales Invoice" and "Delivery Order" Custom HTML/Jinja
+"""Create/refresh the "Invoice" (named "Sales Invoice" before 2026-10-17) and "Delivery Order" ("Surat Jalan" 2026-10-17 to 2026-10-19) Custom HTML/Jinja
 Print Formats for Sales Invoice, recreating the client's legacy paper layouts
 (see legacy_print_format/*.png) -- one document, two distinct printouts since
 this client doesn't use a separate Delivery Note doctype.
@@ -14,14 +14,25 @@ Idempotent: safe to re-run.
 
 import frappe
 
+# Sales Invoice return with goods; added 2026-10-17 by create_retur_penjualan_print_format.
+RETUR_PENJUALAN = {"name": "Retur Penjualan", "template": "retur_penjualan.html", "style": "retur_penjualan.css"}
+
 FORMATS = [
-	{"name": "Sales Invoice", "template": "sales_invoice.html", "style": "sales_invoice.css"},
+	{"name": "Invoice", "template": "sales_invoice.html", "style": "sales_invoice.css"},
 	{"name": "Delivery Order", "template": "delivery_order.html", "style": "delivery_order.css"},
+	RETUR_PENJUALAN,
 ]
 
 
 def execute():
-	for spec in FORMATS:
+	upsert(FORMATS)
+
+
+def upsert(specs):
+	"""Create or refresh Custom Jinja print formats from bp/templates/print_formats.
+	A spec may carry "doc_type" (default Sales Invoice); also used by
+	create_document_print_formats."""
+	for spec in specs:
 		html = frappe.read_file(
 			frappe.get_app_path("bp", "templates", "print_formats", spec["template"]),
 			raise_not_found=True,
@@ -39,7 +50,7 @@ def execute():
 
 		pf.update(
 			{
-				"doc_type": "Sales Invoice",
+				"doc_type": spec.get("doc_type", "Sales Invoice"),
 				"module": "BP",
 				"print_format_type": "Jinja",
 				"custom_format": 1,

@@ -1,0 +1,146 @@
+{#- "Penerimaan Barang" print format for Purchase Invoice -- recreates the legacy
+    Access goods receipt PENERIMAAN BARANG (PrtRDOForm). The legacy print hides
+    price, discount and total unless "Cetak Harga" is ticked: "Penerimaan Barang"
+    is that default (no prices), "Penerimaan Barang Harga" the priced one. Both
+    files are generated from the same layout; keep them in step.
+    Also prints supplier DO no. (bill_no) and PO no., which the legacy stored but
+    did not print. Pure Jinja/HTML. Installed by
+    bp/patches/v1_0/create_document_print_formats.py. -#}
+{#- Company header: doc.company_address if set, else the company's own
+    is_your_company_address Address (most invoices predate company_address
+    being populated) -- built from raw address fields, not address_display,
+    to match the legacy plain-text layout.
+
+    NOTE: uses namespace() because plain {% set %} assignments made inside a
+    {% for %} loop don't propagate back out to the surrounding scope in
+    Jinja2 -- a real footgun if you're used to Python's loop scoping. Any
+    future edit that needs to "find something in a loop and use it after"
+    must follow the same namespace(...) pattern, not a bare {% set %}. -#}
+{% set _addr_ns = namespace(doc=None) %}
+{% if doc.company_address %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
+{% else %}
+	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
+	{% for _addr_name in _addr_links %}
+		{% if not _addr_ns.doc and frappe.db.get_value("Address", _addr_name, "is_your_company_address") %}
+			{% set _addr_ns.doc = frappe.get_cached_doc("Address", _addr_name) %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+{% set company_address = _addr_ns.doc %}
+{% set _address_parts = [] %}
+{% if company_address %}
+	{% if company_address.address_line1 %}{% set _address_parts = _address_parts + [company_address.address_line1] %}{% endif %}
+	{% if company_address.address_line2 %}{% set _address_parts = _address_parts + [company_address.address_line2] %}{% endif %}
+	{% if company_address.city %}{% set _address_parts = _address_parts + [(company_address.city ~ " " ~ (company_address.pincode or ""))|trim] %}{% endif %}
+	{% if company_address.country %}{% set _address_parts = _address_parts + [company_address.country] %}{% endif %}
+{% endif %}
+{% set company_address_line = _address_parts|join(", ") %}
+{% set _contact_parts = [] %}
+{% if company_address and company_address.phone %}{% set _contact_parts = _contact_parts + ["Tel. : " ~ company_address.phone] %}{% endif %}
+{% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
+{% set company_contact_line = _contact_parts|join(", ") %}
+
+{#- Item description: line 1 item name, line 2 brand/model, from the description
+    field (HTML from the editor, or plain text with a newline). -#}
+{% macro item_desc(row) -%}
+	{%- set _d = row.description or row.item_name or "" -%}
+	{%- if "<" in _d -%}{{ _d|safe }}{%- else -%}{{ _d|e|replace("\n", "<br>")|safe }}{%- endif -%}
+{%- endmacro %}
+{#- Warehouse code as on the legacy prints: Warehouse.custom_nama_warehouse, else
+    the name without its " - <company abbr>" suffix. -#}
+{% macro wh_code(wh) -%}
+	{%- if wh -%}
+		{%- set _n = frappe.db.get_value("Warehouse", wh, "custom_nama_warehouse") -%}
+		{%- if _n -%}{{ _n }}{%- else -%}{{ wh.split(" - ")[0] }}{%- endif -%}
+	{%- endif -%}
+{%- endmacro %}
+{#- Address of the supplier: phone / fax line -#}
+{% set _sup_addr = frappe.get_cached_doc("Address", doc.supplier_address) if doc.get("supplier_address") else None %}
+
+{% set show_price = false %}
+{#- PO numbers of the lines; namespace() because a bare set inside a for loop does not leave the loop -#}
+{% set _po_ns = namespace(list=[]) %}
+{% for r in doc.items %}{% if r.purchase_order and r.purchase_order not in _po_ns.list %}{% set _po_ns.list = _po_ns.list + [r.purchase_order] %}{% endif %}{% endfor %}
+{% set _po = _po_ns.list %}
+{% set _wh = doc.get("set_warehouse") or (doc.items[0].warehouse if doc.items else "") %}
+{#- One A4 sheet per page: full header with Page x / N on each, the lines
+    bp_paginate (bp/utils/print_layout.py) puts there, note, totals and
+    signatures on the last sheet only. A line is 5 px plus 14.3 px per printed
+    description line (item name, brand/model, each wrapped at chars_per_line).
+    Re-check page_px / last_page_px after changing fonts, header or footer. -#}
+{% set pages = bp_paginate(doc.items, chars_per_line=(40 if show_price else 55), page_px=812, last_page_px=696) %}
+{% for page in pages %}
+<div class="bp-legacy-format{% if not loop.last %} bp-sheet-break{% endif %}">
+
+	<div class="bp-top">
+		<div class="bp-left">
+			<div class="bp-company">
+				<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+				<div>{{ company_address_line }}</div>
+				<div>{{ company_contact_line }}</div>
+			</div>
+
+			<table class="bp-cust">
+				<tr><td class="bp-cust-label"><b>From :</b></td><td><b>{{ doc.supplier_name }} ({{ doc.supplier }})</b></td></tr>
+				<tr><td></td><td>Phone : {{ (_sup_addr.phone if _sup_addr else "") or "" }}</td></tr>
+				<tr><td></td><td>Fax&nbsp;&nbsp;&nbsp;: {{ (_sup_addr.fax if _sup_addr else "") or "" }}</td></tr>
+				<tr><td></td><td>Attn. : {{ doc.get("contact_display") or "" }}</td></tr>
+				<tr><td class="bp-cust-label"><b>Lokasi :</b></td><td><b>{{ wh_code(_wh) }}</b></td></tr>
+			</table>
+		</div>
+		<div class="bp-right">
+			<div class="bp-doc-heading bp-heading-sm">PENERIMAAN BARANG</div>
+			<div class="bp-doc-no">{{ doc.name }}</div>
+			<table class="bp-info">
+				<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
+				<tr><td class="bp-info-label">DO Supp.</td><td>: {{ doc.get("bill_no") or "" }}</td></tr>
+				<tr><td class="bp-info-label">No. PO</td><td>: {{ _po|join(", ") }}</td></tr>
+				<tr><td class="bp-info-label">Page</td><td>: {{ loop.index }} / {{ pages|length }}</td></tr>
+			</table>
+			<table class="bp-recv"><tr><th>RECEIVED BY</th><th>Ccy</th></tr><tr><td>{{ doc.custom_received_by or "&nbsp;" }}</td><td class="bp-ctr">{{ doc.currency }}</td></tr></table>
+		</div>
+	</div>
+
+	<table class="items-table">
+		{% if show_price %}
+		<colgroup><col class="c-no"><col class="c-desc"><col class="c-qty"><col class="c-uom"><col class="c-price"><col class="c-disc"><col class="c-amt"></colgroup>
+		<thead><tr><th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th>PRICE</th><th>DISCOUNT</th><th>TOTAL</th></tr></thead>
+		{% else %}
+		<colgroup><col class="c-no"><col class="c-desc-np"><col class="c-qty"><col class="c-uom"><col class="c-rest"></colgroup>
+		<thead><tr><th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th class="bp-th-empty"></th></tr></thead>
+		{% endif %}
+		<tbody>
+		{% for idx, row in page %}
+			{% set _price = row.price_list_rate or row.rate or 0 %}
+			{% set _disc = (_price - (row.rate or 0)) * (row.qty or 0) %}
+			<tr>
+				<td class="bp-ctr">{{ idx }}</td><td>{{ item_desc(row) }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0) }}</td><td class="bp-ctr">{{ row.uom or "" }}</td>
+				{% if show_price %}
+				<td class="bp-num">{{ frappe.utils.fmt_money(_price, precision=2) }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(_disc, precision=2) if _disc else "" }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(row.amount or 0, precision=2) }}</td>
+				{% else %}<td></td>{% endif %}
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+
+	{% if loop.last %}
+	<div class="bp-footer">
+		<div class="bp-note"><b>Note :</b> {{ (doc.get("custom_note") or "")|e|replace("\n", "<br>")|safe }}</div>
+		{% if show_price %}
+		<table class="bp-totals"><tr class="bp-grand"><td class="bp-tot-label">G R A N D &nbsp; T O T A L</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.grand_total or 0, precision=2) }}</td></tr></table>
+		{% endif %}
+	</div>
+
+	<table class="bp-sign bp-sign-2">
+		<tr><td></td><td>Received</td><td>Prepared</td></tr>
+		<tr class="bp-sign-space"><td></td><td></td><td></td></tr>
+		<tr class="bp-sign-line"><td></td><td><span></span></td><td><span></span></td></tr>
+		<tr><td></td><td></td><td>{{ frappe.get_fullname(doc.owner) }}</td></tr>
+	</table>
+	{% endif %}
+</div>
+{% endfor %}

@@ -1,190 +1,160 @@
-/* CSS for the "Sales Invoice" print format. Paired with sales_invoice.html --
-   installed into the Print Format's own `css` field by
-   bp/patches/v1_0/create_do_invoice_print_formats.py (not inlined via <style>
-   in the HTML). Kept as its own file, no shared include with
-   delivery_order.css, matching the html files' independence. */
-
-.bp-legacy-format, .bp-legacy-format * {
+/* Legacy Access layout (legacy_print_format/*.png). Sizes in px are taken from
+   the legacy print image (about 800 px across A4, i.e. CSS px at 96 dpi).
+   Rules on th/td carry !important at .print-format specificity because the
+   site's Print Style is concatenated into every format (docs/print-format-rules.md §3). */
+.print-format .bp-legacy-format,
+.print-format .bp-legacy-format * {
 	color: #000 !important;
+	font-family: Tahoma, Verdana, Geneva, sans-serif;
 }
-.bp-legacy-format {
-	/* !important throughout this stylesheet: Frappe always concatenates
-	   standard.css + the site's default Print Style (Print Settings >
-	   Print Style) + this format's own CSS for every print format, with
-	   no per-format opt-out. The built-in styles fight generic
-	   tags/selectors we also use (th, td) -- e.g. "Modern" sets
-	   ".print-format th { background-color: #eee !important;
-	   border-bottom: 0 !important }", which would silently strip our
-	   header borders if that style were ever selected site-wide.
-	   Matching (or exceeding) their specificity with !important makes
-	   this format's look independent of whatever Print Style is active. */
+.print-format .bp-legacy-format {
+	font-size: 12px;
+	line-height: 1.3;
+}
+.print-format .bp-legacy-format table { border-collapse: collapse; width: 100%; }
+.print-format .bp-legacy-format td,
+.print-format .bp-legacy-format th {
+	padding: 0 !important;
+	border: 0 !important;
+	vertical-align: top !important;
+	background: #fff !important;
+	font-size: inherit !important;
+	line-height: inherit;
+}
+
+/* header: company + customer (left), document box (right) */
+.print-format .bp-top { display: flex; align-items: stretch; }
+.print-format .bp-left { flex: 0 0 63%; }
+.print-format .bp-right { flex: 1; padding-left: 50px; }
+.print-format .bp-company {
+	border-right: 1px solid #000;
+	border-bottom: 1px solid #000;
+	padding: 0 6px 4px 0;
 	font-family: "Times New Roman", Times, serif !important;
-	font-size: 12px !important;
+	font-size: 10.5px;
+	line-height: 1.2;
 }
-.bp-legacy-format table {
-	border-collapse: collapse;
-	width: 100%;
-}
-
-.bp-panel {
-	padding: 6px 10px !important;
-}
-
-.bp-header-row {
-	display: flex;
-	gap: 10px;
-	align-items: stretch;
-}
-.bp-header-col {
-	flex: 1 1 50%;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-.bp-panel-docinfo {
-	flex: 1 1 50%;
-}
-.bp-panel-company {
-	border-right: 1px solid #000 !important;
-	border-bottom: 1px solid #000 !important;
-}
-.bp-legacy-format .bp-company-name {
-	font-size: 20px;
+.print-format .bp-company * { font-family: "Times New Roman", Times, serif !important; }
+.print-format .bp-company-name { font-size: 25px; font-weight: bold; line-height: 1.25; margin-bottom: 2px; }
+.print-format .bp-cust-row { display: flex; justify-content: space-between; margin-top: 6px; }
+.print-format .bp-cust { width: auto !important; }
+.print-format .bp-cust td { white-space: pre; padding-bottom: 1px !important; }
+.print-format .bp-cust-label { width: 70px; white-space: nowrap; }
+.print-format .bp-cust b { font-size: 13px; }
+.print-format .bp-wh {
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 27px;
 	font-weight: bold;
-	text-transform: uppercase;
-	margin: 0 0 2px;
+	padding: 4px 22px 0 0;
 }
-.bp-legacy-format .bp-doc-heading {
-	font-size: 18px;
-	font-weight: bold;
-	text-decoration: underline;
-	text-align: right;
-	margin: 0 0 4px;
-}
-.bp-legacy-format .bp-info-table td {
-	padding: 1px 0 !important;
-	white-space: nowrap;
-}
-.bp-legacy-format .bp-info-table td.bp-info-label {
-	padding-right: 6px !important;
-}
-
-.bp-legacy-format .bp-customer-row {
-	display: flex;
-	justify-content: space-between;
-	align-items: stretch;
-}
-.bp-legacy-format .bp-customer-text {
-	flex: 1 1 auto;
-	padding-right: 10px;
-}
-.bp-legacy-format .bp-warehouse-code {
-	flex: none;
-	padding-left: 14px;
-	margin-left: 14px;
+.print-format .bp-order-row { display: flex; justify-content: space-between; margin-top: 8px; }
+.print-format .bp-page-no { padding-right: 18px; }
+.print-format .bp-doc-heading {
+	font-family: "Times New Roman", Times, serif !important;
 	font-size: 22px;
 	font-weight: bold;
-	text-align: center;
-	min-width: 70px;
+	text-decoration: underline;
+	line-height: 1.1;
 }
-.bp-legacy-format .bp-warehouse-code .bp-page-no {
-	font-size: 12px;
-	font-weight: normal;
-	margin-top: 4px;
-}
-
-.bp-legacy-format .items-table {
-	font-size: 11px;
-	margin-top: 4px;
-	font-variant-numeric: tabular-nums;
-	table-layout: fixed;
-}
-.bp-legacy-format .items-table .col-no       { width: 5%; }
-.bp-legacy-format .items-table .col-desc     { width: 30%; }
-.bp-legacy-format .items-table .col-qty-val  { width: 6%; }
-.bp-legacy-format .items-table .col-qty-uom  { width: 4%; }
-.bp-legacy-format .items-table .col-price    { width: 14%; }
-.bp-legacy-format .items-table .col-disc-pct { width: 9%; }
-.bp-legacy-format .items-table .col-disc-amt { width: 13%; }
-.bp-legacy-format .items-table .col-net      { width: 19%; }
-.bp-legacy-format .items-table td.col-no {
-	text-align: center;
-}
-.bp-legacy-format .items-table th {
-	border: 1px solid #000 !important;
-	background: #fff !important;
-	padding: 3px 5px !important;
-	font-weight: bold !important;
-	text-align: center;
-}
-.bp-legacy-format .items-table td {
-	border: none !important;
-	padding: 3px 5px !important;
-	vertical-align: top;
-}
-.bp-legacy-format .items-table tbody tr:last-child td {
-	border-bottom: 1px solid #000 !important;
-}
-.bp-legacy-format .items-table .bp-num {
-	text-align: right;
-}
-.bp-legacy-format .bp-item-note {
-	display: block;
-	font-size: 11px;
-}
-
-.bp-legacy-format .bp-footer-panel {
-	margin-top: 6px;
-	display: flex;
-	justify-content: space-between;
-}
-.bp-legacy-format .bp-note {
-	flex: 0 0 50%;
-	width: 50%;
-}
-/* doc.terms is Quill-authored HTML wrapped in .ql-editor; Frappe's own print
-   CSS sets font-family/font-size directly on .ql-editor (and its children
-   inherit that, not our .bp-legacy-format rule), so it prints in the app's
-   default UI font instead of this format's Times New Roman. Force it back
-   on every descendant, matching the color reset at the top of this file. */
-.bp-legacy-format .bp-note, .bp-legacy-format .bp-note * {
+.print-format .bp-doc-no {
 	font-family: "Times New Roman", Times, serif !important;
-	font-size: 12px !important;
-}
-.bp-legacy-format .bp-note .ql-editor {
-	padding: 0 !important;
-}
-.bp-legacy-format .bp-totals-box {
-	flex: 0 0 50%;
-	width: 50%;
-	border-bottom: 1px solid #000 !important;
-}
-.bp-legacy-format .bp-totals-box td {
-	padding: 0 0 0 12px !important;
-	white-space: nowrap;
-}
-.bp-legacy-format .bp-totals-box .bp-num {
-	text-align: right;
-}
-.bp-legacy-format .bp-totals-box .bp-grand-total td {
+	font-size: 15px;
 	font-weight: bold;
+	margin-bottom: 2px;
 }
+.print-format .bp-info { width: auto !important; }
+.print-format .bp-info td { padding-bottom: 1px !important; white-space: nowrap; }
+.print-format .bp-info .bp-info-label { width: 66px; }
 
-.bp-legacy-format .bp-signature-panel {
-	margin-top: 10px;
-	display: flex;
-	justify-content: space-between;
-	text-align: center;
+/* items: boxed header row, borderless body, closing rule under the last row */
+.print-format .items-table { margin-top: 6px; table-layout: fixed; font-size: 11px; }
+.print-format .items-table th {
+	border: 1px solid #000 !important;
+	font-weight: bold !important;
+	text-align: center !important;
+	padding: 1px 2px !important;
+	font-size: 11px !important;
 }
-.bp-legacy-format .bp-signature-col {
-	width: 32%;
+.print-format .items-table td { padding: 2px 3px 3px 3px !important; font-size: 11px !important; }
+.print-format .items-table tbody tr { page-break-inside: avoid; }
+.print-format .items-table tbody tr:last-child td { border-bottom: 1px solid #000 !important; padding-bottom: 4px !important; }
+.print-format .bp-num { text-align: right !important; }
+.print-format .bp-ctr { text-align: center !important; }
+
+/* footer: note (left) and totals (right) */
+.print-format .bp-footer { display: flex; justify-content: space-between; margin-top: 3px; }
+.print-format .bp-note { flex: 0 0 56%; font-size: 11px; line-height: 1.25; }
+.print-format .bp-note p { margin: 0 !important; }
+.print-format .bp-note .ql-editor { padding: 0 !important; }
+.print-format .bp-totals { flex: 0 0 40%; width: 40% !important; border-bottom: 1px solid #000; margin-top: 6px; }
+.print-format .bp-totals td { font-size: 13px !important; font-weight: bold; padding: 0 0 2px 0 !important; }
+.print-format .bp-totals .bp-tot-label { text-align: right !important; padding-right: 30px !important; }
+.print-format .bp-totals .bp-ctr { width: 50px; }
+.print-format .bp-totals .bp-grand td { font-size: 14px !important; }
+
+/* signatures: three columns, "(____)" line drawn as a bordered span */
+.print-format .bp-sign { margin-top: 22px; table-layout: fixed; font-size: 12px; }
+.print-format .bp-sign td { text-align: center !important; width: 33.33%; }
+.print-format .bp-sign-space td { height: 34px; }
+.print-format .bp-sign-line span {
+	display: inline-block;
+	width: 140px;
+	border-bottom: 1px solid #000;
+	position: relative;
+	height: 12px;
 }
-.bp-legacy-format .bp-signature-line {
-	margin-top: 40px;
+.print-format .bp-sign-line span::before { content: "("; position: absolute; left: -2px; bottom: -3px; }
+.print-format .bp-sign-line span::after { content: ")"; position: absolute; right: -2px; bottom: -3px; }
+.print-format .bp-print-stamp { font-size: 8px; color: #b45309 !important; }
+
+/* Sales Invoice columns */
+/* description widened for the one-row lines (was 35%); number columns sized for
+   "1,234,567,890.00" and "10.00% + 5.00%" at 11px on the 9.5 in page */
+.print-format .items-table .c-no { width: 5%; }
+.print-format .items-table .c-desc { width: 41.5%; }
+.print-format .items-table .c-qty { width: 5%; }
+.print-format .items-table .c-uom { width: 6%; }
+.print-format .items-table .c-price { width: 10.5%; }
+.print-format .items-table .c-pct { width: 11%; }
+.print-format .items-table .c-disc { width: 8.5%; }
+.print-format .items-table .c-net { width: 12.5%; }
+
+/* HT-42: invoice barcode under the document number. Its size comes from the SVG (mm per
+   module, see barcode_module_mm in the .html); never scale it, or bars stop being whole dots. */
+.print-format .bp-legacy-format img.bp-barcode { display: block; width: auto !important; max-width: none !important; height: auto; margin: 1px 0 2px 0; }
+
+/* ---- Continuous form 9.5 x 5.5 in, dot-matrix printer (Bry 2026-10-17) ----
+   Only the Sales Invoice document (this format and Delivery Order) prints on it;
+   the other BP formats stay A4. The template draws one .bp-sheet per page with
+   the full header and Page x / N (lines split by bp_paginate), totals and
+   signatures on the last sheet only. Chrome does not repeat a header this tall
+   from a <thead>, so the template does it. */
+@page {
+	size: 241.3mm 139.7mm;
+	margin: 5mm 7mm 6mm 7mm;
 }
-.bp-legacy-format .bp-print-stamp {
-	text-align: right;
-	color: #b45f06 !important;
-	font-size: 10px;
-	margin-top: 4px;
+/* read by the PDF generator (Get PDF): only plain .print-format rules count. In mm, not in:
+   frappe convert_uom (print_utils.py) raises KeyError 0 for "in" values (v16.50). */
+.print-format {
+	page-width: 241.3mm;
+	page-height: 139.7mm;
+	margin-top: 5mm;
+	margin-bottom: 6mm;
+	margin-left: 7mm;
+	margin-right: 7mm;
 }
+@media print {
+	.print-format { margin: 0 !important; padding: 0 !important; max-width: none !important; min-height: 0 !important; }
+}
+@media screen {
+	.print-format { max-width: 9.5in !important; min-height: 5.5in !important; padding: 5mm 7mm !important; }
+	.print-format .bp-sheet-break { border-bottom: 1px dashed #999; padding-bottom: 6mm; margin-bottom: 6mm; }
+}
+.print-format .bp-sheet-break { break-after: page; page-break-after: always; }
+.print-format .bp-left { flex: 0 0 60%; }
+.print-format .bp-right { padding-left: 18px; }
+.print-format .bp-end { break-inside: avoid; page-break-inside: avoid; }
+.print-format .bp-sign { margin-top: 8px; }
+.print-format .bp-sign-space td { height: 22px; }
+.print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
+.print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }

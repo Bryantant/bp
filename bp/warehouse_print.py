@@ -1,7 +1,7 @@
 """Warehouse print queue (HT-171, meeting Mulyadi 15 Okt).
 
 Admin AR sends a submitted Sales Invoice to the warehouse admin in one print
-format ("Sales Invoice" with prices, "Surat Jalan" without). Each send is one
+format ("Invoice" with prices, "Delivery Order" without). Each send is one
 "BP Warehouse Print" row that the warehouse admin can print exactly once.
 AR may send the same invoice again as often as needed; every send, print,
 blocked reprint and reset is written to "BP Invoice Print Log".

@@ -10,7 +10,7 @@ Idempotent: only seeds when the table is empty, so later edits stay.
 
 import frappe
 
-DEFAULT_FORMATS = ["Sales Invoice", "Delivery Order"]
+DEFAULT_FORMATS = ["Invoice", "Delivery Order"]
 
 
 def execute():

@@ -90,7 +90,7 @@ trial-and-error:
   the `.html` by basename, e.g. `sales_invoice.html` + `sales_invoice.css`), copied
   into the Print Format's dedicated `css` field — **not** inlined via a `<style>` tag
   inside the `.html` file (that was the original approach; moved out per Bry's
-  request). `sales_invoice.html`/`delivery_order.html` are each **fully
+  request). `sales_invoice.html`/`surat_jalan.html` are each **fully
   self-contained** otherwise — no shared `_shared.html` include. An earlier version
   factored the common header/customer/signature markup and CSS into a shared macro
   file imported via `{% from "bp/templates/print_formats/_shared.html" import ... %}`
@@ -209,12 +209,60 @@ trial-and-error:
 
 ### Per print format
 
-#### Sales Invoice / Delivery Order
+#### Invoice / Surat Jalan / Retur Penjualan (Sales Invoice)
+- **2026-10-17:** "Delivery Order" renamed to **"Surat Jalan"** (files `surat_jalan.html/.css`, patch
+  `rename_delivery_order_print_format` renames the record, updates BP Settings > Print Lock Formats, re-syncs both).
+  Heading "SURAT JALAN" (legacy said "DELIVERY ORDER").
+- **2026-10-17:** "Sales Invoice" renamed to **"Invoice"** (file stays `sales_invoice.html/.css`; patch
+  `rename_sales_invoice_print_format_to_invoice` moves links and the default print format).
+- **Number on the print (2026-10-17, HT-169):** names since 17 Oct carry a dashed prefix (`INV-A26100001`,
+  `SR-A26100001`, `ND-26100001`, `AR-NC-...`). Invoice prints a name with a `-` as is and adds `INV-` to an older
+  name without one (`A26100002` -> `INV-A26100002`). Surat Jalan prints `SJ-` + the name without `INV-`.
+- **Retur Penjualan (2026-10-17):** Sales Invoice return with goods, same continuous form as Invoice. Layout from the
+  legacy PrtSaReForm (bp-trd.mdb, form FmSaleRetu): heading RETUR PENJUALAN, No / Date / Hal, Received From,
+  Note = `remarks` (legacy SalRetNt; "No Remarks" not printed), columns NO / DESCRIPTION / QTY / PRICE (`rate`) /
+  AMOUNT, TOTAL = `doc.total` (Disc / Grand Total only when they differ), signatures Customer by / Received by /
+  Approved by / company + Admin. ERP return lines are negative: every figure prints through `|abs`. Default print
+  of a return with goods via `bp/public/js/sales_invoice.js` (see §3, sticky print format).
+- **One row per line (client request, Bry 2026-10-17):** `bp_item_line(row.description or row.item_name)` joins
+  the description parts (item name, then the legacy brand/code line) with a space and drops the legacy placeholder
+  words made only of `-`/`=` (`==== A-06` -> `A-06`, `- -` -> nothing). Body cells are `nowrap`; a description too
+  long for its column ends in an ellipsis. Sales Invoice DESCRIPTION is 41.5% wide (was 35%).
+- The orange "user date time" stamp under Admin copies the legacy print ("kris 7/21/2026 12:12:42 PM"); Bry
+  2026-10-17: keep it as is.
+- Columns follow the legacy Access report PrtInvForm: PRICE = list price before discount (`price_list_rate`), DISC % =
+  cascaded percentages joined with " + " (blank if none), DISCOUNT = nominal discount amounts (blank if 0), NET AMOUNT =
+  line amount. Description: see "One row per line". Salesman prints the
+  Sales Person name. Customer block: address line 1 " - " line 2, then "Tel : ...   Fax : ...".
+- Footer note: `doc.terms`, else the company's `default_selling_terms` ("Informasi Rekening" = legacy DONotesx text).
+- **Paper (Bry 2026-10-17): continuous form 9.5 x 5.5 in on dot-matrix printers, Sales Invoice document only**
+  (both formats here; PO, Penerimaan Barang, Mutasi Barang, Payment Note, Journal Voucher stay A4). `@page` is
+  241.3 x 139.7 mm, margins 5/7/6/7 mm; `.print-format { page-width; page-height; margin-* }` gives Get PDF the same
+  size. Use mm: Frappe `convert_uom` raises KeyError 0 for `in` values (v16.50), which breaks Get PDF.
+- **One sheet per page, drawn by the template.** Chrome does not repeat a `<thead>` this tall (our header is ~1/3
+  of the page), so the legacy "header on every page" is done in Jinja: `bp_paginate(doc.items, one_line,
+  page_px, last_page_px)` (`bp/utils/print_layout.py`, Jinja method) returns the lines per sheet; each
+  `.bp-sheet` has the full header with `Page : x / N`, the last also totals and signatures (`.bp-end`). Values now:
+  Sales Invoice 285 / 130, Surat Jalan 285 / 150 with `one_line=True` (CSS px; a row is ~19.3 px: 14 per page,
+  6-7 on the last). Re-measure them after changing fonts, header or footer (render 30+ line invoice to PDF, check
+  every page). An underestimate spills a line onto an extra sheet, nothing is cut.
+- Printing on the PC: the Windows printer needs a 9.5 x 5.5 in paper size, chosen in Chrome's print dialog with
+  scale 100% and headers/footers off.
+- Standard ERPNext Sales Invoice print formats are disabled on bp.localhost (db_set `disabled`, kept by migrate).
+- **2026-10-17 (HT-42):** both formats print a Code 128 barcode of `doc.name` (not the INV-/SJ- number) under the
+  document number: `code128_svg(doc.name, module_mm=barcode_module_mm, height_mm=9)`, a bp Jinja method
+  (`bp/utils/barcode.py`), pure Python, no extra pip package; digit runs use set C. Scanned back in on the Invoice
+  Kembali form. `barcode_module_mm` = 0.4233 (1/60 inch: whole printer dots at 120/180/360 dpi, ~75 mm wide for
+  SINV-A26100001); never scale the image with CSS. A smaller size only after the paper test
+  (`bp-dev/print-test/2026-10-17-uji-barcode-dot-matrix.pdf`, sizes A-D, scanner + phone camera).
+- These two formats are no longer pure Jinja: they call the bp Jinja methods `code128_svg` and `bp_paginate`
+  (hooks `jinja.methods`). Both are plain functions with unit tests (`bp/utils/test_barcode.py`,
+  `test_print_layout.py`); the rest stays editable in the Desk.
 Two Custom HTML/Jinja print formats on the **Sales Invoice** doctype (this client
 does not use a separate Delivery Note doc — delivery and invoicing both happen off
 one Sales Invoice record, printed two different ways). Recreates the client's legacy
 paper layouts (see `legacy_print_format/*.png`). Templates:
-`bp/bp/templates/print_formats/{sales_invoice,delivery_order}.{html,css}` (each
+`bp/bp/templates/print_formats/{sales_invoice,surat_jalan}.{html,css}` (each
 `.html`+`.css` pair self-contained, no shared include, no Python helper — see §1);
 installed by `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`.
 
@@ -252,7 +300,32 @@ installed by `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`.
   Currently stores just the primary number for phone/fax; ask Bry if the hunting-line
   detail needs preserving some other way before treating this as final.
 
+#### Buying, stock and accounting documents (2026-10-17)
+Installed by `bp/patches/v1_0/create_document_print_formats.py`; the first format per doctype in its `FORMATS` list
+is set as the Default Print Format (property setter). Same header style as Sales Invoice (company block in Times,
+heading underlined, boxed column header row, borderless body). Each `.html`/`.css` pair is self-contained.
+
+| Format | Doctype | Legacy print | Notes |
+|---|---|---|---|
+| Purchase Order (default) | Purchase Order | PrtPOForm | Supplier phone/fax from `supplier_address`, Attn = `contact_display`, Send To = shipping address line1/line2/city in one line (else warehouse code). AMOUNT = qty x list price (gross); Netto = `grand_total`, Gross/Discount lines only when there is a discount. Signatures Supplier Confirmation / MANAGER / PURCHASING |
+| Penerimaan Barang (default) / Penerimaan Barang Harga | Purchase Invoice | PrtRDOForm | Legacy hid prices unless "Cetak Harga": the default has no prices. Also prints DO Supp. (`bill_no`) and the PO numbers of the lines. Note = `custom_note` only (`remarks` holds ERPNext's auto text). Discount = (list price - rate) x qty |
+| Mutasi Barang (default) / Mutasi Barang Harga | Stock Entry | PrtStockMut*, PrtStockMutRelForm*, PrtStockMutSetForm | Title by type: MUTASI BARANG (Masuk/Keluar, Status IN/OUT), PEMINDAHAN BARANG (Relokasi, Lokasi "X ke Y"), MUTASI BARANG SET (Rakit Set, rows grouped Barang : Masuk / Keluar). No. = `custom_legacy_no` (Ref. = name) else name. Migrated rows have `basic_amount` 0, so AMOUNT = qty x `basic_rate` |
+| Payment Note (default) | Payment Entry | PrtRNForm / PrtPNForm | Title Receiving Note (Receive) / Payment Note (Pay); bottom block pinned to the page foot (`min-height: 262mm`) |
+| Journal Voucher (default) | Journal Entry | PrtCRNForm / PrtCPNForm | Three modes: party rows (Receiving/Payment Note), cash/bank (Cash Receiving/Payment Note), else a plain Account/Debit/Credit journal |
+
+- The two variants of Penerimaan Barang and Mutasi Barang are separate files with the same layout and a
+  `show_price` flag at the top; keep them in step when editing.
+- Standard print formats of these doctypes are still enabled (only Sales Invoice's were disabled).
+
 ## 3. Technical Lessons
+
+- **2026-10-17 — The print page keeps the format picked last, even for another document.**
+  `PrintView.set_default_print_format` (frappe `printing/page/print/print.js`) returns early when the
+  selector still holds a format valid for the doctype, so `frm.meta.default_print_format` is read only on
+  the first visit. A per-document default (Retur Penjualan for returns, Invoice otherwise) therefore needs
+  both: set `frm.meta.default_print_format` on refresh, and wrap `set_default_print_format` for Sales
+  Invoice (`bp.sales_invoice.patch_print_view`). `frappe.ui.form.PrintView` exists only after the print page
+  was opened once; before that the selector is empty and Frappe applies the default itself.
 
 - **2026-07-21 — Print Format selector was invisible on the Print Preview page.**
   Cause: our own `desk_overrides.bundle.js` auto-collapses `.layout-side-section` on

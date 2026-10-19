@@ -1,0 +1,165 @@
+{#- "Mutasi Barang Harga" print format for Stock Entry -- recreates the legacy
+    Access stock mutation prints: MUTASI BARANG (Barang Masuk / Barang Keluar,
+    PrtStockMutForm*), PEMINDAHAN BARANG (Relokasi Barang, PrtStockMutRelForm*),
+    MUTASI BARANG SET (Rakit Set, PrtStockMutSetForm, rows grouped Barang : Masuk /
+    Keluar). The legacy default print had no prices (REMARK column, signatures
+    Diterima / Supir / Dikeluarkan / Di Buat Oleh); "Print Price" gave the priced
+    one: "Mutasi Barang" is the default, "Mutasi Barang Harga" the priced one.
+    Both files are generated from the same layout; keep them in step.
+    Pure Jinja/HTML. Installed by bp/patches/v1_0/create_document_print_formats.py. -#}
+{#- Company header: doc.company_address if set, else the company's own
+    is_your_company_address Address (most invoices predate company_address
+    being populated) -- built from raw address fields, not address_display,
+    to match the legacy plain-text layout.
+
+    NOTE: uses namespace() because plain {% set %} assignments made inside a
+    {% for %} loop don't propagate back out to the surrounding scope in
+    Jinja2 -- a real footgun if you're used to Python's loop scoping. Any
+    future edit that needs to "find something in a loop and use it after"
+    must follow the same namespace(...) pattern, not a bare {% set %}. -#}
+{% set _addr_ns = namespace(doc=None) %}
+{% if doc.company_address %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
+{% else %}
+	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
+	{% for _addr_name in _addr_links %}
+		{% if not _addr_ns.doc and frappe.db.get_value("Address", _addr_name, "is_your_company_address") %}
+			{% set _addr_ns.doc = frappe.get_cached_doc("Address", _addr_name) %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+{% set company_address = _addr_ns.doc %}
+{% set _address_parts = [] %}
+{% if company_address %}
+	{% if company_address.address_line1 %}{% set _address_parts = _address_parts + [company_address.address_line1] %}{% endif %}
+	{% if company_address.address_line2 %}{% set _address_parts = _address_parts + [company_address.address_line2] %}{% endif %}
+	{% if company_address.city %}{% set _address_parts = _address_parts + [(company_address.city ~ " " ~ (company_address.pincode or ""))|trim] %}{% endif %}
+	{% if company_address.country %}{% set _address_parts = _address_parts + [company_address.country] %}{% endif %}
+{% endif %}
+{% set company_address_line = _address_parts|join(", ") %}
+{% set _contact_parts = [] %}
+{% if company_address and company_address.phone %}{% set _contact_parts = _contact_parts + ["Tel. : " ~ company_address.phone] %}{% endif %}
+{% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
+{% set company_contact_line = _contact_parts|join(", ") %}
+
+{#- Item description: line 1 item name, line 2 brand/model, from the description
+    field (HTML from the editor, or plain text with a newline). -#}
+{% macro item_desc(row) -%}
+	{%- set _d = row.description or row.item_name or "" -%}
+	{%- if "<" in _d -%}{{ _d|safe }}{%- else -%}{{ _d|e|replace("\n", "<br>")|safe }}{%- endif -%}
+{%- endmacro %}
+{#- Warehouse code as on the legacy prints: Warehouse.custom_nama_warehouse, else
+    the name without its " - <company abbr>" suffix. -#}
+{% macro wh_code(wh) -%}
+	{%- if wh -%}
+		{%- set _n = frappe.db.get_value("Warehouse", wh, "custom_nama_warehouse") -%}
+		{%- if _n -%}{{ _n }}{%- else -%}{{ wh.split(" - ")[0] }}{%- endif -%}
+	{%- endif -%}
+{%- endmacro %}
+{#- Address of the supplier: phone / fax line -#}
+{% set _sup_addr = frappe.get_cached_doc("Address", doc.supplier_address) if doc.get("supplier_address") else None %}
+
+{% set show_price = true %}
+{% set se_type = doc.stock_entry_type or doc.purpose %}
+{% set is_set = se_type == "Rakit Set" or doc.purpose == "Repack" %}
+{% set is_rel = se_type == "Relokasi Barang" or doc.purpose == "Material Transfer" %}
+{% set title = "MUTASI BARANG SET" if is_set else ("PEMINDAHAN BARANG" if is_rel else "MUTASI BARANG") %}
+{% set status = "IN" if doc.purpose == "Material Receipt" else ("OUT" if doc.purpose == "Material Issue" else "") %}
+{% set _src = doc.get("from_warehouse") or (doc.items[0].s_warehouse if doc.items else "") %}
+{% set _dst = doc.get("to_warehouse") or (doc.items[0].t_warehouse if doc.items else "") %}
+{% set ns = namespace(total=0) %}
+<div class="bp-legacy-format">
+
+	<div class="bp-top">
+		<div class="bp-left">
+			<div class="bp-company">
+				<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+				<div>{{ company_address_line }}</div>
+				<div>{{ company_contact_line }}</div>
+			</div>
+
+			<table class="bp-cust bp-lokasi">
+				<tr><td class="bp-cust-label"><b>Lokasi :</b></td><td><b>{% if is_rel %}{{ wh_code(_src) }} ke {{ wh_code(_dst) }}{% else %}{{ wh_code(_dst or _src) }}{% endif %}</b></td></tr>
+				<tr><td class="bp-cust-label"><b>Note :</b></td><td>{{ (doc.get("remarks") or "")|e|replace("\n", "<br>")|safe }}</td></tr>
+			</table>
+		</div>
+		<div class="bp-right">
+			<div class="bp-doc-heading bp-heading-sm">{{ title }}</div>
+			<table class="bp-info">
+				<tr><td class="bp-info-label">No.</td><td>: <b class="bp-mono">{{ doc.get("custom_legacy_no") or doc.name }}</b></td></tr>
+				<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
+				<tr><td class="bp-info-label">Hal</td><td>: 1 / 1</td></tr>
+				{% if status %}<tr><td class="bp-info-label">Status</td><td>: {{ status }}</td></tr>{% endif %}
+				{% if doc.get("custom_legacy_no") %}<tr><td class="bp-info-label">Ref.</td><td>: {{ doc.name }}</td></tr>{% endif %}
+			</table>
+		</div>
+	</div>
+
+	{% macro rows(items) %}
+		{% for row in items %}
+			{#- migrated entries carry basic_amount 0; print qty x rate like the legacy did -#}
+			{% set _amt = row.basic_amount or ((row.qty or 0) * (row.basic_rate or 0)) %}
+			{% set ns.total = ns.total + _amt %}
+			<tr>
+				<td class="bp-ctr">{{ loop.index }}</td><td>{{ item_desc(row) }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0 if is_set else 2) }}</td><td class="bp-ctr">{{ row.uom or "" }}</td>
+				{% if show_price %}
+				<td class="bp-ctr">{{ doc.get("currency") or "IDR" }}</td><td class="bp-num">{{ frappe.utils.fmt_money(row.basic_rate or 0, precision=2) }}</td>
+				<td class="bp-ctr">{{ doc.get("currency") or "IDR" }}</td><td class="bp-num">{{ frappe.utils.fmt_money(_amt, precision=2) }}</td>
+				{% else %}<td></td>{% endif %}
+			</tr>
+		{% endfor %}
+	{% endmacro %}
+
+	<table class="items-table">
+		{% if show_price %}
+		<colgroup><col class="c-no"><col class="c-desc"><col class="c-qty"><col class="c-uom"><col class="c-ccy"><col class="c-price"><col class="c-ccy"><col class="c-amt"></colgroup>
+		<thead><tr><th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th colspan="2">PRICE</th><th colspan="2">AMOUNT</th></tr></thead>
+		{% else %}
+		<colgroup><col class="c-no"><col class="c-desc-np"><col class="c-qty"><col class="c-uom"><col class="c-rest"></colgroup>
+		<thead><tr><th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th>REMARK</th></tr></thead>
+		{% endif %}
+		<tbody>
+		{% if is_set %}
+			<tr class="bp-group"><td colspan="{{ 8 if show_price else 5 }}"><b>Barang : Masuk</b></td></tr>
+			{{ rows(doc.items|selectattr("t_warehouse")|list) }}
+			<tr class="bp-group"><td colspan="{{ 8 if show_price else 5 }}"><b>Barang : Keluar</b></td></tr>
+			{{ rows(doc.items|rejectattr("t_warehouse")|list) }}
+		{% else %}
+			{{ rows(doc.items) }}
+		{% endif %}
+		</tbody>
+	</table>
+
+	{% if show_price %}
+	<div class="bp-footer">
+		<div class="bp-note"></div>
+		<table class="bp-totals"><tr class="bp-grand"><td class="bp-tot-label">T O T A L</td><td class="bp-ctr">{{ doc.get("currency") or "IDR" }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.total, precision=2) }}</td></tr></table>
+	</div>
+	{% endif %}
+
+	{% if is_set %}
+	<table class="bp-sign bp-sign-2">
+		<tr><td></td><td>Approved By,</td><td>Prepared By,</td></tr>
+		<tr class="bp-sign-space"><td></td><td></td><td></td></tr>
+		<tr class="bp-sign-line"><td></td><td><span></span></td><td><span></span></td></tr>
+		<tr><td></td><td></td><td>{{ frappe.get_fullname(doc.owner) }}</td></tr>
+	</table>
+	{% elif show_price and not is_rel %}
+	<table class="bp-sign bp-sign-2">
+		<tr><td></td><td>Approved</td><td>Prepared</td></tr>
+		<tr class="bp-sign-space"><td></td><td></td><td></td></tr>
+		<tr class="bp-sign-line"><td></td><td><span></span></td><td><span></span></td></tr>
+		<tr><td></td><td></td><td>{{ frappe.get_fullname(doc.owner) }}</td></tr>
+	</table>
+	{% else %}
+	<table class="bp-sign bp-sign-4">
+		<colgroup><col><col><col><col></colgroup>
+		<tr><td colspan="2">Diterima Oleh,</td><td>Dikeluarkan Oleh,</td><td>Di Buat Oleh,</td></tr>
+		<tr class="bp-sign-space"><td></td><td></td><td></td><td></td></tr>
+		<tr><td></td><td>Supir</td><td></td><td>{{ frappe.get_fullname(doc.owner) }}</td></tr>
+		<tr class="bp-sign-line"><td><span></span></td><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+		<tr class="bp-tgl"><td>Tgl :</td><td></td><td>Tgl :</td><td></td></tr>
+	</table>
+	{% endif %}
+</div>

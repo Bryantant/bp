@@ -1,0 +1,69 @@
+/* Legacy Access receipt / payment note layout (PrtRNForm, PrtPNForm; sample Image/Payment Note.pdf).
+   A4 portrait. Fonts as the legacy report: Times New Roman for company/title/column headers, Courier
+   New for the company address and document number, Tahoma for data. The block with totals, note and
+   signatures sits at the bottom of the page (legacy page footer). Rules on th/td carry !important at
+   .print-format specificity because the site's Print Style is concatenated into every format. */
+.print-format .bp-legacy-format,
+.print-format .bp-legacy-format * { color: #000 !important; font-family: Tahoma, Verdana, Geneva, sans-serif; }
+.print-format .bp-legacy-format { font-size: 11px; line-height: 1.3; }
+.print-format .bp-legacy-format table { border-collapse: collapse; width: 100%; }
+.print-format .bp-legacy-format td,
+.print-format .bp-legacy-format th {
+	padding: 0 !important; border: 0 !important; vertical-align: top !important;
+	background: #fff !important; font-size: inherit !important; line-height: inherit;
+}
+
+.print-format .bp-note-doc { display: flex; flex-direction: column; min-height: 262mm; }
+.print-format .bp-main { flex: 1; }
+/* one .bp-note-doc per A4 sheet (pages from bp_paginate in the template) */
+.print-format .bp-sheet-break { break-after: page; page-break-after: always; }
+
+/* header */
+.print-format .bp-hdr { display: flex; justify-content: space-between; }
+.print-format .bp-company-name { font-family: "Times New Roman", Times, serif !important; font-size: 19px; font-weight: bold; line-height: 1.2; }
+.print-format .bp-company-addr { font-family: "Courier New", Courier, monospace !important; font-size: 10.5px; line-height: 1.2; max-width: 105mm; }
+.print-format .bp-hdr-right { text-align: right; }
+.print-format .bp-title { font-family: "Times New Roman", Times, serif !important; font-size: 19px; font-weight: bold; line-height: 1.2; }
+.print-format .bp-docno { font-family: "Courier New", Courier, monospace !important; font-size: 13px; font-weight: bold; }
+.print-format .bp-dp { width: auto !important; margin: 3px 0 0 auto; }
+.print-format .bp-dp td { text-align: left !important; padding: 0 0 1px 6px !important; white-space: nowrap; }
+
+/* lines table: boxed header row, borderless body */
+.print-format .items-table { margin-top: 12px; table-layout: fixed; }
+.print-format .items-table th {
+	border: 1px solid #000 !important; font-family: "Times New Roman", Times, serif !important;
+	font-weight: bold !important; text-align: center !important; font-size: 11px !important; padding: 1px 2px !important;
+}
+.print-format .items-table th.bp-th-plain { font-weight: normal !important; }
+.print-format .items-table td { padding: 2px 2px 1px 2px !important; white-space: nowrap; overflow: hidden; }
+.print-format .items-table tbody { page-break-inside: avoid; }
+.print-format .bp-row2 td { padding-top: 3px !important; padding-bottom: 4px !important; }
+.print-format .bp-u { text-decoration: underline; }
+.print-format .bp-red, .print-format .bp-red * { color: #e00000 !important; text-decoration: underline; }
+.print-format .bp-num { text-align: right !important; }
+.print-format .bp-ctr { text-align: center !important; }
+
+/* column widths (mm of the legacy report) */
+.print-format .items-table .c-no { width: 4.3%; }
+.print-format .items-table .c-inv { width: 11%; }
+.print-format .items-table .c-date { width: 9.6%; }
+.print-format .items-table .c-desc { width: 10.6%; }
+.print-format .items-table .c-ccy { width: 4.3%; }
+.print-format .items-table .c-amt { width: 13.8%; }
+.print-format .items-table .c-rate { width: 10.1%; }
+.print-format .items-table .c-method { width: 18.2%; }
+
+/* bottom block */
+.print-format .bp-foot { border-top: 1px solid #bbb; padding-top: 4px; page-break-inside: avoid; }
+.print-format .bp-foot-top { display: flex; align-items: flex-start; }
+.print-format .bp-party { flex: 0 0 29%; }
+.print-format .bp-total-label { flex: 0 0 6%; font-weight: bold; font-size: 12px; }
+.print-format .bp-total-box { flex: 0 0 18.4%; font-weight: bold; }
+.print-format .bp-total-box td { font-weight: bold; white-space: nowrap; }
+.print-format .bp-tccy { width: 24%; text-align: right !important; padding-right: 4px !important; }
+.print-format .bp-foot-rule { margin: 14px 0 6px 35.2%; width: 36.8%; border-bottom: 1px solid #000; }
+.print-format .bp-sign-boxes { table-layout: fixed; }
+.print-format .bp-sign-boxes td {
+	border: 1px solid #000 !important; height: 20mm; text-align: center !important; width: 20%;
+}
+.print-format .bp-sign-boxes td.bp-note-box { width: 40%; text-align: left !important; padding: 1px 4px !important; }

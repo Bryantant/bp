@@ -1,18 +1,11 @@
-{#- "Sales Invoice" print format -- full pricing view of the legacy paper
-    invoice (legacy_print_format/Sales Invoice.png). Same underlying Sales
-    Invoice document as the "Delivery Order" format (bp/bp/templates/print_formats/
-    delivery_order.html) -- the two are kept as independent, fully self-contained
-    files (no shared include) so each can be read/edited on its own.
+{#- "Sales Invoice" print format -- invoice WITH prices, recreating the legacy
+    Access invoice (legacy_print_format/Sales Invoice.png). Same Sales Invoice
+    document as the "Delivery Order" format (delivery_order.html, no prices); the two
+    files are kept independent and self-contained (no shared include).
 
-    Deliberately pure Jinja/HTML -- no custom Python (bp.utils) backing this
-    template, so the whole thing can be tweaked directly in the Print Format's
-    HTML field in the Desk UI (e.g. for a quick production fix) without a code
-    deploy. Only calls frappe.* functions already exposed to print format
-    templates by core (frappe.get_cached_doc, frappe.db.get_value,
-    frappe.get_all, frappe.utils.*, frappe.get_fullname). CSS lives in the
-    paired sales_invoice.css (installed into the Print Format's own `css`
-    field, not inlined here). Installed by
-    bp/patches/v1_0/create_do_invoice_print_formats.py. -#}
+    Pure Jinja/HTML (no custom Python), so it can be tweaked in the Print
+    Format's HTML field in the Desk UI. CSS in the paired sales_invoice.css.
+    Installed by bp/patches/v1_0/create_do_invoice_print_formats.py. -#}
 
 {#- Company header: doc.company_address if set, else the company's own
     is_your_company_address Address (most invoices predate company_address
@@ -74,11 +67,25 @@
 	{% endif %}
 {% endif %}
 
-{#- Footer note: the document's own Terms and Conditions (doc.terms, populated
-    from the linked Terms and Conditions template via doc.tc_name, or entered
-    directly on the doc). It's a Text Editor/HTML field, so it's rendered as-is
-    (|safe), unlike the old plain-text company field which needed \n -> <br>. -#}
+{#- Customer block as on the legacy print: address line 1 " - " line 2 on one
+    line, then "Tel : ...   Fax : ..." from the invoice's customer address. -#}
+{% set _cust_addr = frappe.get_cached_doc("Address", doc.customer_address) if doc.customer_address else None %}
+{% set customer_address_line = "" %}
+{% set customer_contact_line = "" %}
+{% if _cust_addr %}
+	{% set customer_address_line = _cust_addr.address_line1 or "" %}
+	{% if _cust_addr.address_line2 %}{% set customer_address_line = customer_address_line ~ " - " ~ _cust_addr.address_line2 %}{% endif %}
+	{% set customer_contact_line = "Tel : " ~ (_cust_addr.phone or "") ~ "   Fax : " ~ (_cust_addr.fax or "") %}
+{% endif %}
+
+{#- Footer note: the document's own Terms and Conditions (doc.terms), else the
+    company's default selling terms ("Informasi Rekening" = the legacy invoice
+    note). HTML field, rendered with |safe. -#}
 {% set invoice_note = doc.terms or "" %}
+{% if not invoice_note %}
+	{% set _tc = frappe.db.get_value("Company", doc.company, "default_selling_terms") if doc.company else None %}
+	{% if _tc %}{% set invoice_note = frappe.db.get_value("Terms and Conditions", _tc, "terms") or "" %}{% endif %}
+{% endif %}
 
 {#- Bottom-right "printed by / at" stamp -- blank until the invoice has
     actually been printed once (bp_last_printed_by/at, set by
@@ -90,106 +97,120 @@
 	{% set print_stamp = (_stamp_name ~ " " ~ _stamp_when)|trim %}
 {% endif %}
 
-<div class="bp-legacy-format">
-	<div class="bp-header-row">
-		<div class="bp-header-col">
-			<div class="bp-panel bp-panel-company">
-				<p class="bp-company-name">{{ doc.company }}</p>
-				<div>{{ company_address_line }}</div>
-				<div>{{ company_contact_line }}</div>
-			</div>
-			<div class="bp-panel bp-customer-panel">
-				<div class="bp-customer-row">
-					<div class="bp-customer-text">
-						<b>Customer :</b> {{ doc.customer_name }} ({{ doc.customer }})<br>
-						<b>Order by :</b> {{ doc.custom_order_by or "" }}<br>
-						{{ doc.address_display or "" }}
-					</div>
-					<div class="bp-warehouse-code">
-						{{ warehouse_code }}
-						<div class="bp-page-no">Page : {{ "1" }} / {{ "1" }}</div>
-					</div>
+{#- Document number: legacy printed "INV-" + invoice number. Invoices named
+    since 17 Oct 2026 carry their prefix with a dash (INV-A26100001, SR-A26100001,
+    ND-26100001, AR-NC-...) and print as named; older names without a dash
+    (A26100002) keep the added "INV-". -#}
+{% set doc_number = doc.name if "-" in doc.name else "INV-" ~ doc.name %}
+
+{#- Barcode module (narrowest bar). BP prints Sales Invoices on dot-matrix
+    printers, continuous form 9.5 x 5.5 in: 1/60 inch is a whole number of
+    printer dots at 120, 180 and 360 dpi. Change only after the paper test
+    (bp-dev/print-test). Never scale the image with CSS: bars would no longer
+    be whole dots. -#}
+{% set barcode_module_mm = 0.4233 %}
+
+{#- Each line prints on one row: item name + the legacy brand/code line, joined by
+    bp_item_line, cut by CSS when too long (client request, Bry 2026-10-17).
+    One sheet per 9.5 x 5.5 in page: full header with Page x / N on each, the
+    lines bp_paginate (bp/utils/print_layout.py) puts there, totals and
+    signatures on the last. Sizes in px are tuned to the CSS of this format;
+    re-check them after changing fonts, header or footer. -#}
+{% set pages = bp_paginate(doc.items, one_line=True, page_px=285, last_page_px=130) %}
+{% for page in pages %}
+{% set page_no = loop.index %}
+<div class="bp-legacy-format bp-sheet{% if not loop.last %} bp-sheet-break{% endif %}">
+		<div class="bp-top">
+			<div class="bp-left">
+				<div class="bp-company">
+					<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+					<div>{{ company_address_line }}</div>
+					<div>{{ company_contact_line }}</div>
+				</div>
+				<div class="bp-cust-row">
+					<table class="bp-cust">
+						<tr><td class="bp-cust-label">Customer :</td><td><b>{{ doc.customer_name }} ({{ doc.customer }})</b></td></tr>
+						<tr><td></td><td>{{ customer_address_line }}</td></tr>
+						<tr><td></td><td>{{ customer_contact_line }}</td></tr>
+					</table>
+					<div class="bp-wh">{{ warehouse_code }}</div>
+				</div>
+				<div class="bp-order-row">
+					<div><span class="bp-cust-label">Order by :</span> {{ doc.custom_order_by or "" }}</div>
+				<div class="bp-page-no">Page : {{ page_no }} / {{ pages|length }}</div>
 				</div>
 			</div>
+			<div class="bp-right">
+				<div class="bp-doc-heading">INVOICE</div>
+				<div class="bp-doc-no">{{ doc_number }}</div>
+				{#- HT-42: Code 128 of the invoice name (not the printed INV-/DO- number), scanned back in on the Invoice Kembali form -#}
+				{% if doc.name %}<img class="bp-barcode" src="{{ code128_svg(doc.name, module_mm=barcode_module_mm, height_mm=9) }}" alt="{{ doc.name }}">{% endif %}
+				<table class="bp-info">
+					<tr><td class="bp-info-label">No. PO</td><td>: {{ doc.po_no or "" }}</td></tr>
+					<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
+					<tr><td class="bp-info-label">Salesman</td><td>: {{ (frappe.db.get_value("Sales Person", doc.bp_sales_person, "sales_person_name") if doc.bp_sales_person else "") or doc.bp_sales_person or "" }}</td></tr>
+					<tr><td class="bp-info-label">Term</td><td>: {{ doc.payment_terms_template or "" }}</td></tr>
+					<tr><td class="bp-info-label">Currency</td><td>: {{ doc.currency }}</td></tr>
+				</table>
+			</div>
 		</div>
-		<div class="bp-panel bp-panel-docinfo">
-			<p class="bp-doc-heading">INVOICE</p>
-			<table class="bp-info-table">
-				<tr><td colspan="2"><b>INV- {{ doc.name }}</b></td></tr>
-				<tr><td class="bp-info-label">No. PO</td><td>: {{ doc.po_no or "" }}</td></tr>
-				<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
-				<tr><td class="bp-info-label">Salesman</td><td>: {{ doc.bp_sales_person or "" }}</td></tr>
-				<tr><td class="bp-info-label">Term</td><td>: {{ doc.payment_terms_template or "" }}</td></tr>
-				<tr><td class="bp-info-label">Currency</td><td>: {{ doc.currency }}</td></tr>
+
+		<table class="items-table">
+			<colgroup>
+				<col class="c-no"><col class="c-desc"><col class="c-qty"><col class="c-uom"><col class="c-price">
+				<col class="c-pct"><col class="c-disc"><col class="c-net">
+			</colgroup>
+			<thead>
+				<tr>
+					<th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th>PRICE</th>
+					<th>DISC %</th><th>DISCOUNT</th><th>NET AMOUNT</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for idx, row in page %}
+				{#- legacy columns: list price before discount, discount % (cascaded
+				    steps joined with "+"), nominal discount, net amount -#}
+				{% set _pcts = [] %}
+				{% if row.custom_discount1_percentage %}{% set _pcts = _pcts + ["%.2f"|format(row.custom_discount1_percentage) ~ "%"] %}{% endif %}
+				{% if row.custom_discount2_percentage %}{% set _pcts = _pcts + ["%.2f"|format(row.custom_discount2_percentage) ~ "%"] %}{% endif %}
+				{% set _disc_amt = (row.custom_discount1_amount or 0) + (row.custom_discount2_amount or 0) %}
+				{% set _price = row.price_list_rate or row.rate or 0 %}
+				<tr>
+					<td class="bp-ctr">{{ idx }}</td>
+					<td class="bp-desc-1">{{ bp_item_line(row.description or row.item_name) }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0) }}</td>
+					<td class="bp-ctr">{{ row.uom or "" }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(_price, precision=2) }}</td>
+					<td class="bp-num">{{ _pcts|join(" + ") }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(_disc_amt, precision=2) if _disc_amt else "" }}</td>
+					<td class="bp-num">{{ frappe.utils.fmt_money(row.amount or 0, precision=2) }}</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	{% if loop.last %}
+		{#- totals, note and signatures: once, after the last item, never split -#}
+		<div class="bp-end">
+			<div class="bp-footer">
+				<div class="bp-note">{{ invoice_note|safe }}</div>
+				<table class="bp-totals">
+					<tr><td class="bp-tot-label">Total :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.total or 0, precision=2) }}</td></tr>
+					<tr><td class="bp-tot-label">Disc :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.discount_amount or 0, precision=2) }}</td></tr>
+					<tr class="bp-grand"><td class="bp-tot-label">Grand Total :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.grand_total or 0, precision=2) }}</td></tr>
+				</table>
+			</div>
+
+			<table class="bp-sign">
+				<tr>
+					<td>Received in Good<br>conditions by,</td>
+					<td>Delivered By,</td>
+					<td>{{ (doc.company or "")|upper }}</td>
+				</tr>
+				<tr class="bp-sign-space"><td></td><td></td><td></td></tr>
+				<tr class="bp-sign-line"><td><span></span></td><td><span></span></td><td><span></span></td></tr>
+				<tr><td>Name &amp; Date</td><td></td><td>Admin{% if print_stamp %}<div class="bp-print-stamp">{{ print_stamp }}</div>{% endif %}</td></tr>
 			</table>
 		</div>
-	</div>
-
-	<table class="items-table">
-		<colgroup>
-			<col class="col-no">
-			<col class="col-desc">
-			<col class="col-qty-val">
-			<col class="col-qty-uom">
-			<col class="col-price">
-			<col class="col-disc-pct">
-			<col class="col-disc-amt">
-			<col class="col-net">
-		</colgroup>
-		<thead>
-			<tr>
-				<th class="col-no">NO.</th>
-				<th class="col-desc">DESCRIPTION</th>
-				<th colspan="2">QTY</th>
-				<th class="col-price">PRICE</th>
-				<th class="col-disc-pct">DISC %</th>
-				<th class="col-disc-amt">DISCOUNT</th>
-				<th class="col-net">NET AMOUNT</th>
-			</tr>
-		</thead>
-		<tbody>
-			{% for row in doc.items %}
-			<tr>
-				<td class="bp-num col-no">{{ loop.index }}</td>
-				<td class="col-desc">{{ (row.description or row.item_name)|safe }}</td>
-				<td class="bp-num col-qty-val">{{ frappe.utils.fmt_money(row.qty, precision=0) }}</td>
-				<td class="col-qty-uom">{{ row.uom or "" }}</td>
-				<td class="bp-num">{{ frappe.utils.fmt_money(row.rate or 0, precision=2) }}</td>
-				<td class="bp-num">{{ "%.2f"|format(row.discount_percentage or 0) }}%</td>
-				<td class="bp-num">{{ frappe.utils.fmt_money(row.discount_amount or 0, precision=2) }}</td>
-				<td class="bp-num">{{ frappe.utils.fmt_money(row.net_amount or row.amount or 0, precision=2) }}</td>
-			</tr>
-			{% endfor %}
-		</tbody>
-	</table>
-
-	<div class="bp-panel bp-footer-panel">
-		<div class="bp-note">{{ invoice_note }}</div>
-		<table class="bp-totals-box">
-			<tr><td>Total :</td><td>{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.total or 0, precision=2) }}</td></tr>
-			<tr><td>Disc :</td><td>{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.discount_amount or 0, precision=2) }}</td></tr>
-			<tr class="bp-grand-total"><td><b>Grand Total :</b></td><td><b>{{ doc.currency }}</b></td><td class="bp-num"><b>{{ frappe.utils.fmt_money(doc.grand_total or 0, precision=2) }}</b></td></tr>
-		</table>
-	</div>
-
-	<div class="bp-panel bp-signature-panel">
-		<div class="bp-signature-col">
-			Received in Good<br>conditions by,
-			<div class="bp-signature-line">( _______________ )</div>
-			Name &amp; Date
-		</div>
-		<div class="bp-signature-col">
-			Delivered by,<br>
-			<div class="bp-signature-line"><br>( _______________ )</div>
-			Name &amp; Date
-		</div>
-		<div class="bp-signature-col">
-			{{ doc.company }}
-			<div class="bp-signature-line"><br>( _______________ )</div>
-		</div>
-	</div>
-
-	{% if print_stamp %}
-	<div class="bp-print-stamp">{{ print_stamp }}</div>
 	{% endif %}
 </div>
+{% endfor %}

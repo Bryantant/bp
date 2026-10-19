@@ -1,0 +1,142 @@
+/* Legacy Access layout, shared rules copied from sales_invoice.css (keep in step). Sizes in px are taken from
+   the legacy print image (about 800 px across A4, i.e. CSS px at 96 dpi).
+   Rules on th/td carry !important at .print-format specificity because the
+   site's Print Style is concatenated into every format (docs/print-format-rules.md §3). */
+.print-format .bp-legacy-format,
+.print-format .bp-legacy-format * {
+	color: #000 !important;
+	font-family: Tahoma, Verdana, Geneva, sans-serif;
+}
+.print-format .bp-legacy-format {
+	font-size: 12px;
+	line-height: 1.3;
+}
+.print-format .bp-legacy-format table { border-collapse: collapse; width: 100%; }
+.print-format .bp-legacy-format td,
+.print-format .bp-legacy-format th {
+	padding: 0 !important;
+	border: 0 !important;
+	vertical-align: top !important;
+	background: #fff !important;
+	font-size: inherit !important;
+	line-height: inherit;
+}
+
+/* header: company + customer (left), document box (right) */
+.print-format .bp-top { display: flex; align-items: stretch; }
+.print-format .bp-left { flex: 0 0 63%; }
+.print-format .bp-right { flex: 1; padding-left: 50px; }
+.print-format .bp-company {
+	border-right: 1px solid #000;
+	border-bottom: 1px solid #000;
+	padding: 0 6px 4px 0;
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 10.5px;
+	line-height: 1.2;
+}
+.print-format .bp-company * { font-family: "Times New Roman", Times, serif !important; }
+.print-format .bp-company-name { font-size: 25px; font-weight: bold; line-height: 1.25; margin-bottom: 2px; }
+.print-format .bp-cust-row { display: flex; justify-content: space-between; margin-top: 6px; }
+.print-format .bp-cust { width: auto !important; }
+.print-format .bp-cust td { white-space: pre; padding-bottom: 1px !important; }
+.print-format .bp-cust-label { width: 70px; white-space: nowrap; }
+.print-format .bp-cust b { font-size: 13px; }
+.print-format .bp-wh {
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 27px;
+	font-weight: bold;
+	padding: 4px 22px 0 0;
+}
+.print-format .bp-order-row { display: flex; justify-content: space-between; margin-top: 8px; }
+.print-format .bp-page-no { padding-right: 18px; }
+.print-format .bp-doc-heading {
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 22px;
+	font-weight: bold;
+	text-decoration: underline;
+	line-height: 1.1;
+}
+.print-format .bp-doc-no {
+	font-family: "Times New Roman", Times, serif !important;
+	font-size: 15px;
+	font-weight: bold;
+	margin-bottom: 2px;
+}
+.print-format .bp-info { width: auto !important; }
+.print-format .bp-info td { padding-bottom: 1px !important; white-space: nowrap; }
+.print-format .bp-info .bp-info-label { width: 66px; }
+
+/* items: boxed header row, borderless body, closing rule under the last row */
+.print-format .items-table { margin-top: 6px; table-layout: fixed; font-size: 11px; }
+.print-format .items-table th {
+	border: 1px solid #000 !important;
+	font-weight: bold !important;
+	text-align: center !important;
+	padding: 1px 2px !important;
+	font-size: 11px !important;
+}
+.print-format .items-table td { padding: 2px 3px 3px 3px !important; font-size: 11px !important; }
+.print-format .items-table tbody tr { page-break-inside: avoid; }
+.print-format .items-table tbody tr:last-child td { border-bottom: 1px solid #000 !important; padding-bottom: 4px !important; }
+.print-format .bp-num { text-align: right !important; }
+.print-format .bp-ctr { text-align: center !important; }
+
+/* footer: note (left) and totals (right) */
+.print-format .bp-footer { display: flex; justify-content: space-between; margin-top: 3px; }
+.print-format .bp-note { flex: 0 0 56%; font-size: 11px; line-height: 1.25; }
+.print-format .bp-note p { margin: 0 !important; }
+.print-format .bp-note .ql-editor { padding: 0 !important; }
+.print-format .bp-totals { flex: 0 0 40%; width: 40% !important; border-bottom: 1px solid #000; margin-top: 6px; }
+.print-format .bp-totals td { font-size: 13px !important; font-weight: bold; padding: 0 0 2px 0 !important; }
+.print-format .bp-totals .bp-tot-label { text-align: right !important; padding-right: 30px !important; }
+.print-format .bp-totals .bp-ctr { width: 50px; }
+.print-format .bp-totals .bp-grand td { font-size: 14px !important; }
+
+/* signatures: three columns, "(____)" line drawn as a bordered span */
+.print-format .bp-sign { margin-top: 22px; table-layout: fixed; font-size: 12px; }
+.print-format .bp-sign td { text-align: center !important; width: 33.33%; }
+.print-format .bp-sign-space td { height: 34px; }
+.print-format .bp-sign-line span {
+	display: inline-block;
+	width: 140px;
+	border-bottom: 1px solid #000;
+	position: relative;
+	height: 12px;
+}
+.print-format .bp-sign-line span::before { content: "("; position: absolute; left: -2px; bottom: -3px; }
+.print-format .bp-sign-line span::after { content: ")"; position: absolute; right: -2px; bottom: -3px; }
+.print-format .bp-print-stamp { font-size: 8px; color: #b45309 !important; }
+
+
+/* page number and boxes under the document block */
+.print-format .bp-page-right { margin-top: 2px; }
+.print-format .bp-heading-sm { font-size: 19px; margin-bottom: 4px; white-space: nowrap; }
+.print-format .bp-right { padding-left: 24px; }
+.print-format .bp-totals .bp-tot-label { white-space: nowrap; }
+.print-format .bp-totals { flex: 0 0 46%; width: 46% !important; }
+.print-format .bp-mono { font-family: "Courier New", Courier, monospace !important; font-size: 13px; }
+.print-format .bp-cust td { white-space: normal; }
+.print-format .bp-group td { padding-top: 5px !important; font-size: 11px !important; }
+.print-format .bp-th-empty { border-left: 0 !important; }
+
+/* RECEIVED BY / Ccy box */
+.print-format .bp-recv { width: auto !important; margin-top: 6px; }
+.print-format .bp-recv th, .print-format .bp-recv td { border: 1px solid #000 !important; padding: 1px 8px !important; }
+.print-format .bp-recv td { height: 22px; }
+
+/* Penerimaan Barang columns (no-price: description wide, empty rest) */
+.print-format .items-table .c-no { width: 5%; }
+.print-format .items-table .c-desc { width: 40%; }
+.print-format .items-table .c-desc-np { width: 55%; }
+.print-format .items-table .c-qty { width: 8%; }
+.print-format .items-table .c-uom { width: 7%; }
+.print-format .items-table .c-price { width: 13%; }
+.print-format .items-table .c-disc { width: 11%; }
+.print-format .items-table .c-amt { width: 16%; }
+.print-format .items-table .c-rest { width: 25%; }
+.print-format .bp-sign-2 td { width: 33.33%; }
+
+/* one .bp-legacy-format per A4 sheet (pages from bp_paginate in the template) */
+.print-format .bp-sheet-break { break-after: page; page-break-after: always; }
+/* description parts (<p> from the editor) print as tight lines, as bp_paginate counts them */
+.print-format .items-table td p { margin: 0 !important; }
