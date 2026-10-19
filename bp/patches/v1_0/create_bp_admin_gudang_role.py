@@ -10,7 +10,7 @@ Idempotent: creates the role if missing and only fills an empty home page.
 import frappe
 
 ROLE = "BP Admin Gudang"
-HOME_PAGE = "app/bp-warehouse-print"
+HOME_PAGE = "desk/bp-warehouse-print"
 
 
 def execute():

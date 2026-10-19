@@ -51,5 +51,6 @@ bp.patches.v1_0.set_company_fx_accounts_and_monthly_periods
 bp.patches.v1_0.grant_stock_entry_to_sales_and_accounts
 bp.patches.v1_0.ensure_print_control_fields
 bp.patches.v1_0.create_bp_admin_gudang_role
+bp.patches.v1_0.fix_bp_admin_gudang_home_page
 bp.patches.v1_0.disable_print_once_on_invoice
 bp.patches.v1_0.sales_person_optional_for_nd_invoices
