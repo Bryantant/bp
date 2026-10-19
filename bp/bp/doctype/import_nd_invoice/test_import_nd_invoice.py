@@ -76,7 +76,7 @@ class TestImportNDInvoice(FrappeTestCase):
 		self.assertEqual(doc.rows[0].cust_code, customer.name)
 		self.assertEqual(doc.rows[0].customer_name, customer.customer_name)
 
-	def test_missing_warehouse_blocks_submit_but_salesman_is_optional(self):
+	def test_submit_passes_without_warehouse_or_salesman(self):
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
@@ -86,14 +86,10 @@ class TestImportNDInvoice(FrappeTestCase):
 			"invoice_date": "2026-01-01",
 			"amount": 1000,
 			"resolved_customer": customer,
-			# salesman deliberately omitted: optional for ND invoices
+			# no warehouse and no salesman: ND invoices move no stock and carry no salesperson
 		}
 		doc = frappe.get_doc({"doctype": "Import ND Invoice", "rows": [row]})
-		with self.assertRaisesRegex(frappe.ValidationError, "Warehouse is required"):
-			ImportNDInvoice.before_submit(doc)
-
-		doc.rows[0].warehouse = frappe.db.get_value("Warehouse", {"is_group": 0}, "name")
-		ImportNDInvoice.before_submit(doc)  # no salesman, still passes
+		ImportNDInvoice.before_submit(doc)  # must not raise
 
 
 class TestImportNDInvoiceEndToEnd(FrappeTestCase):
@@ -108,7 +104,6 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
-		warehouse = frappe.db.get_value("Warehouse", {"is_group": 0, "company": "PT. Bestindo Persada"}, "name")
 		batch = frappe.get_doc(
 			{
 				"doctype": "Import ND Invoice",
@@ -118,8 +113,7 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 						"cust_code_nd": nd_code,
 						"invoice_date": frappe.utils.today(),
 						"amount": 125000,
-						# no salesman: ND invoices carry none (Bry 2026-10-17)
-						"warehouse": warehouse,
+						# no salesman (Bry 2026-10-17) and no warehouse (Bry 2026-10-19)
 					}
 				],
 			}
@@ -131,7 +125,8 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		self.assertEqual(si.docstatus, 0)
 		self.assertEqual(si.customer, customer)
 		self.assertEqual(si.custom_nd_invoice_no, "TEST-ND-E2E-1")
-		self.assertEqual(si.items[0].warehouse, warehouse)
+		# The import passes no warehouse; ERPNext may still fill the item's default one.
+		# That moves no stock (the placeholder is non-stock), checked below after submit.
 		self.assertEqual(si.grand_total, 125000)
 		self.assertFalse(si.bp_sales_person)
 		self.assertFalse(si.sales_team)
@@ -157,7 +152,6 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 						"invoice_date": frappe.utils.today(),
 						"amount": 1,
 						"salesman": frappe.db.get_value("Sales Person", {"is_group": 0}, "name"),
-						"warehouse": frappe.db.get_value("Warehouse", {"is_group": 0}, "name"),
 						"resolved_customer": customer,
 					}
 				],

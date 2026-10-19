@@ -28,7 +28,9 @@
    "fieldname": "default_warehouse",
    "fieldtype": "Link",
    "label": "Warehouse",
-   "options": "Warehouse"
+   "options": "Warehouse",
+   "hidden": 1,
+   "description": "Not used: ND invoices move no stock (Bry 2026-10-19). Kept for old batches."
   },
   {
    "fieldname": "column_break_defaults",
@@ -91,7 +93,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-17 14:00:00.000000",
+ "modified": "2026-10-19 14:06:21.305164",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Import ND Invoice",

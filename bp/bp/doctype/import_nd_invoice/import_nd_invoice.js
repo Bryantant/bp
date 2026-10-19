@@ -21,13 +21,8 @@ frappe.ui.form.on("Import ND Invoice", {
 		);
 	},
 
-	// Same behavior as Source Warehouse on Sales Invoice/Delivery Note
-	// (see erpnext TransactionController.autofill_warehouse): changing the
-	// header default overwrites it on every existing row, not just blank ones.
-	default_warehouse(frm) {
-		bp.import_sales_invoice.autofill_rows(frm, "warehouse", frm.doc.default_warehouse);
-	},
-
+	// Changing the header default overwrites it on every existing row, not just
+	// blank ones (same as Source Warehouse on Sales Invoice).
 	default_salesman(frm) {
 		bp.import_sales_invoice.autofill_rows(frm, "salesman", frm.doc.default_salesman);
 	},
@@ -53,9 +48,6 @@ bp.import_sales_invoice = {
 	},
 
 	apply_defaults_to_row: function (frm, row) {
-		if (frm.doc.default_warehouse && !row.warehouse) {
-			frappe.model.set_value(row.doctype, row.name, "warehouse", frm.doc.default_warehouse);
-		}
 		if (frm.doc.default_salesman && !row.salesman) {
 			frappe.model.set_value(row.doctype, row.name, "salesman", frm.doc.default_salesman);
 		}
@@ -84,7 +76,6 @@ bp.import_sales_invoice = {
 				var added = 0;
 				(msg.rows || []).forEach(function (row) {
 					if (existing.has(row.nd_invoice_no)) return;
-					if (frm.doc.default_warehouse) row.warehouse = frm.doc.default_warehouse;
 					if (frm.doc.default_salesman) row.salesman = frm.doc.default_salesman;
 					frm.add_child("rows", row);
 					existing.add(row.nd_invoice_no);

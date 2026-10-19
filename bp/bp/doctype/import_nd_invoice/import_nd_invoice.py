@@ -13,7 +13,9 @@ Each Sales Invoice is named after the ND "Invoice Number" from the Excel file
 The batch itself keeps its own INDI-YYYY-##### name.
 
 Salesman is optional: ND invoices carry no salesperson, as in the old Access
-tool (Bry 2026-10-17). Warehouse is still required on every row.
+tool (Bry 2026-10-17). Warehouse is not used either: the placeholder item is a
+non-stock item, so the invoices move no stock (Bry 2026-10-19). The fields stay,
+hidden, so batches made before that still open.
 
 The ND System's Excel export (InvND) uses column headers that don't match
 Frappe field-label conventions, so COLUMN_MAP is hardcoded rather than left
@@ -22,8 +24,8 @@ export was found using "CustomerID" where an earlier assumption expected
 "CustomerId". Only 4 columns are ever read from the file (Invoice Number,
 Invoice Date, CustomerID, Net Amount) -- Cust Code and Customer Name are NOT
 Excel columns, they're derived from the matched Customer record in
-resolve_customers(). Salesman and Warehouse are not in the Excel file at
-all -- they're filled in manually in the grid, over as many saves as needed,
+resolve_customers(). Salesman is not in the Excel file at
+all -- it's filled in manually in the grid, over as many saves as needed,
 before Submit. Unlike SOBatch.validate(), this validate() never blocks a Draft save
 on unresolved/incomplete rows -- it only resolves what it can. All hard
 requirements are enforced once, all-or-nothing, in before_submit() -- NOT
@@ -123,8 +125,6 @@ class ImportNDInvoice(Document):
 						row.idx, row.cust_code_nd
 					)
 				)
-			if not row.warehouse:
-				problems.append(_("Row {0}: Warehouse is required").format(row.idx))
 			if frappe.db.exists("Sales Invoice", {"custom_nd_invoice_no": row.nd_invoice_no}):
 				problems.append(
 					_("Row {0}: a Sales Invoice already exists for ND invoice number {1}").format(
@@ -168,7 +168,6 @@ class ImportNDInvoice(Document):
 					"item_code": placeholder_item,
 					"qty": 1,
 					"rate": row.amount,
-					"warehouse": row.warehouse,
 				},
 			)
 			# set_name skips before_naming and the naming series entirely
