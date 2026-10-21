@@ -1,0 +1,7 @@
+/* DataTable blocks text selection on cells; Inquiry users highlight values
+   with the mouse and copy them (right-click > Copy or Cmd/Ctrl+C). */
+.inquiry-table .dt-cell,
+.inquiry-table .dt-cell__content {
+	user-select: text;
+	-webkit-user-select: text;
+}
