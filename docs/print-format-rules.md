@@ -311,7 +311,7 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
 | Penerimaan Barang (default) / Penerimaan Barang Harga | Purchase Invoice | PrtRDOForm | Legacy hid prices unless "Cetak Harga": the default has no prices. Also prints DO Supp. (`bill_no`) and the PO numbers of the lines. Note = `custom_note` only (`remarks` holds ERPNext's auto text). Discount = (list price - rate) x qty |
 | Mutasi Barang (default) / Mutasi Barang Harga | Stock Entry | PrtStockMut*, PrtStockMutRelForm*, PrtStockMutSetForm | Title by type: MUTASI BARANG (Masuk/Keluar, Status IN/OUT), PEMINDAHAN BARANG (Relokasi, Lokasi "X ke Y"), MUTASI BARANG SET (Rakit Set, rows grouped Barang : Masuk / Keluar). No. = `custom_legacy_no` (Ref. = name) else name. Migrated rows have `basic_amount` 0, so AMOUNT = qty x `basic_rate` |
 | Payment Note (default) | Payment Entry | PrtRNForm / PrtPNForm | Title Receiving Note (Receive) / Payment Note (Pay); bottom block pinned to the page foot (`min-height: 262mm`) |
-| Journal Voucher (default) | Journal Entry | PrtCRNForm / PrtCPNForm | Three modes: party rows (Receiving/Payment Note), cash/bank (Cash Receiving/Payment Note), else a plain Account/Debit/Credit journal |
+| Journal Voucher (default) | Journal Entry | - | One layout for every entry: No., Account (+ party), Description, Debit, Credit. The Receiving/Payment Note and Cash Receiving/Payment Note modes were dropped (Bry, 2026-10-21) |
 
 - The two variants of Penerimaan Barang and Mutasi Barang are separate files with the same layout and a
   `show_price` flag at the top; keep them in step when editing.

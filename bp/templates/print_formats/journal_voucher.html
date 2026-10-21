@@ -1,13 +1,7 @@
-{#- "Journal Voucher" print format for Journal Entry -- legacy Access voucher
-    layouts, chosen from the entry itself:
-      - rows against a Customer / Supplier (receipts and payments imported from
-        the legacy program, custom_legacy_type AR Receipt / AP Payment):
-        "Receiving Note" / "Payment Note" (legacy PrtRNForm / PrtPNForm): the
-        invoices paid, then the accounts paid with;
-      - otherwise, rows on a Cash / Bank account: "Cash Receiving Note" /
-        "Cash Payment Note" (legacy PrtCRNForm / PrtCPNForm): description and
-        amount of every other row;
-      - anything else: "Journal Voucher" with account, debit and credit.
+{#- "Journal Voucher" print format for Journal Entry: one layout for every
+    entry (Bry, 2026-10-21; the Receiving / Payment Note and Cash Receiving /
+    Payment Note variants were dropped): account, description, debit and
+    credit per row.
     Totals, note (user_remark) and signature boxes at the bottom of the last
     page; long entries run over more A4 sheets, each with the full header and
     Page x / N.
@@ -50,75 +44,25 @@
 {% set company_contact_line = _contact_parts|join(", ") %}
 
 
-{% set ns = namespace(party_type=None, party=None, cash_dr=0, cash_cr=0, n=0, t1=0, t2=0, dr=0, cr=0) %}
-{% set acc_info = {} %}
+{% set ns = namespace(dr=0, cr=0) %}
 {% for r in doc.accounts %}
-	{% set _a = frappe.db.get_value("Account", r.account, ["account_name", "account_type", "account_currency"], as_dict=1) %}
-	{% set _ = acc_info.update({r.account: _a}) %}
-	{% if r.party_type in ["Customer", "Supplier"] and not ns.party_type %}{% set ns.party_type = r.party_type %}{% set ns.party = r.party %}{% endif %}
-	{% if _a and _a.account_type in ["Cash", "Bank"] %}
-		{% set ns.cash_dr = ns.cash_dr + (r.debit or 0) %}{% set ns.cash_cr = ns.cash_cr + (r.credit or 0) %}
-	{% endif %}
 	{% set ns.dr = ns.dr + (r.debit or 0) %}{% set ns.cr = ns.cr + (r.credit or 0) %}
 {% endfor %}
-{% if ns.party_type %}
-	{% set mode = "party" %}
-	{% set title = "Receiving Note" if ns.party_type == "Customer" else "Payment Note" %}
-{% elif ns.cash_dr or ns.cash_cr %}
-	{% set mode = "cash" %}
-	{% set title = "Cash Receiving Note" if ns.cash_dr > ns.cash_cr else "Cash Payment Note" %}
-{% else %}
-	{% set mode = "journal" %}
-	{% set title = "Journal Voucher" %}
-{% endif %}
 {% set ccy = doc.get("currency") or frappe.db.get_value("Company", doc.company, "default_currency") or "IDR" %}
-{% set party_name = (frappe.db.get_value(ns.party_type, ns.party, "customer_name" if ns.party_type == "Customer" else "supplier_name") if ns.party else "") %}
 
 {#- Lines first, pages after (same pattern as payment_note.html): every printed
     line becomes a dict with its height in px (bp_px), then bp_paginate
     (bp/utils/print_layout.py) splits them over A4 sheets. Each sheet repeats
     the header with Page x / N; totals, note and signatures go at the bottom of
-    the last one. A one-line row is 17.3 px, a row with the Bank row under it
-    38.6 px; a wrapping cell (cash / journal descriptions) adds 14.3 px per
+    the last one. A one-line row is 17.3 px; a wrapping cell adds 14.3 px per
     extra line, counted at about 7 px per character of its column. Re-check
     page_px / last_page_px after changing fonts, header or footer. -#}
 {% set lines = namespace(rows=[]) %}
-{% if mode == "party" %}
-	{% set is_receive = ns.party_type == "Customer" %}
-	{#- invoices paid: the party rows -#}
-	{% for r in doc.accounts if r.party_type == ns.party_type %}
-		{% set _amt = (r.credit or 0) - (r.debit or 0) if is_receive else (r.debit or 0) - (r.credit or 0) %}
-		{% set ns.t1 = ns.t1 + _amt %}
-		{% set _ref_date = frappe.db.get_value(r.reference_type, r.reference_name, "posting_date") if r.reference_type in ["Sales Invoice", "Purchase Invoice", "Journal Entry"] and r.reference_name else None %}
-		{% set _desc = "Invoice" %}
-		{% if r.reference_type in ["Sales Invoice", "Purchase Invoice"] and r.reference_name and frappe.db.get_value(r.reference_type, r.reference_name, "is_return") %}{% set _desc = "Credit Note" %}{% endif %}
-		{% if not r.reference_name %}{% set _desc = "Advance" %}{% endif %}
-		{% set lines.rows = lines.rows + [{"kind": "inv", "inv": r.reference_name or "", "date": _ref_date, "desc": _desc, "amount": _amt, "bp_px": 17.3}] %}
-	{% endfor %}
-	{#- paid with: every other row; the first carries the cheque no / date row -#}
-	{% for r in doc.accounts if r.party_type != ns.party_type %}
-		{% set _amt = (r.debit or 0) - (r.credit or 0) if is_receive else (r.credit or 0) - (r.debit or 0) %}
-		{% set ns.t2 = ns.t2 + _amt %}
-		{% set _row2 = loop.first and (doc.cheque_no or doc.cheque_date) %}
-		{% set lines.rows = lines.rows + [{"kind": "paid", "amount": _amt, "row2": _row2,
-			"method": (acc_info.get(r.account) or {}).get("account_name") or r.account, "bp_px": 38.6 if _row2 else 17.3}] %}
-	{% endfor %}
-{% elif mode == "cash" %}
-	{% set is_receive = ns.cash_dr > ns.cash_cr %}
-	{% for r in doc.accounts if (acc_info.get(r.account) or {}).get("account_type") not in ["Cash", "Bank"] %}
-		{% set _amt = (r.credit or 0) - (r.debit or 0) if is_receive else (r.debit or 0) - (r.credit or 0) %}
-		{% set ns.t2 = ns.t2 + _amt %}
-		{% set _text = r.user_remark or ((acc_info.get(r.account) or {}).get("account_name")) or r.account %}
-		{% set _n = [((_text|length) / 77)|round(0, "ceil")|int, 1]|max %}
-		{% set lines.rows = lines.rows + [{"kind": "cash", "text": _text, "amount": _amt, "bp_px": 3 + 14.3 * _n}] %}
-	{% endfor %}
-{% else %}
-	{% for r in doc.accounts %}
-		{% set _n_acc = [((r.account|length) / 34)|round(0, "ceil")|int, 1]|max + (1 if r.party else 0) %}
-		{% set _n_rem = [(((r.user_remark or "")|length) / 32)|round(0, "ceil")|int, 1]|max %}
-		{% set lines.rows = lines.rows + [{"kind": "journal", "row": r, "bp_px": 3 + 14.3 * ([_n_acc, _n_rem]|max)}] %}
-	{% endfor %}
-{% endif %}
+{% for r in doc.accounts %}
+	{% set _n_acc = [((r.account|length) / 34)|round(0, "ceil")|int, 1]|max + (1 if r.party else 0) %}
+	{% set _n_rem = [(((r.user_remark or "")|length) / 32)|round(0, "ceil")|int, 1]|max %}
+	{% set lines.rows = lines.rows + [{"row": r, "bp_px": 3 + 14.3 * ([_n_acc, _n_rem]|max)}] %}
+{% endfor %}
 {% set pages = bp_paginate(lines.rows, page_px=900, last_page_px=760) %}
 
 {% for page in pages %}
@@ -130,66 +74,13 @@
 				<div class="bp-company-addr">{{ company_address_line }}<br>{{ company_contact_line }}</div>
 			</div>
 			<div class="bp-hdr-right">
-				<div class="bp-title">{{ title }}</div>
+				<div class="bp-title">Journal Voucher</div>
 				<div class="bp-docno">{{ doc.custom_legacy_no or doc.name }}</div>
 				<table class="bp-dp"><tr><td>Date :</td><td>{{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
 				<tr><td>Page :</td><td>{{ loop.index }} / {{ pages|length }}</td></tr></table>
 			</div>
 		</div>
 
-		{% if mode == "party" %}
-		<table class="items-table">
-			<colgroup>
-				<col class="c-no"><col class="c-inv"><col class="c-date"><col class="c-desc"><col class="c-ccy">
-				<col class="c-amt"><col class="c-ccy"><col class="c-amt"><col class="c-rate"><col class="c-method">
-			</colgroup>
-			<thead><tr>
-				<th>No.</th><th>Inv./ DN</th><th>Date</th><th>Description</th><th>Ccy</th><th>Paid Amount</th>
-				<th>Ccy</th><th>Paid With</th><th>Rate</th><th class="bp-th-plain">Payment Method</th>
-			</tr></thead>
-			{% for idx, line in page %}
-			<tbody>
-				{% if line.kind == "inv" %}
-				<tr>
-					<td class="bp-ctr">{{ idx }}</td><td class="bp-ctr">{{ line.inv }}</td>
-					<td class="bp-ctr">{{ frappe.utils.formatdate(line.date, "dd-MMM-yy") if line.date else "" }}</td>
-					<td>{{ line.desc }}</td><td class="bp-ctr">{{ ccy }}</td>
-					<td class="bp-num">{{ frappe.utils.fmt_money(line.amount, precision=2) }}</td>
-					<td></td><td></td><td></td><td></td>
-				</tr>
-				{% else %}
-				<tr>
-					<td class="bp-ctr">{{ idx }}</td><td></td><td></td><td></td><td></td><td></td>
-					<td class="bp-ctr">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(line.amount, precision=2) }}</td>
-					<td class="bp-num">1.0000</td>
-					<td class="bp-ctr">{{ line.method }}</td>
-				</tr>
-				{% if line.row2 %}
-				<tr class="bp-row2">
-					<td colspan="4" class="bp-num">{% if not is_receive %}<b class="bp-u">Bank :</b>{% endif %}</td><td colspan="3"></td>
-					<td class="bp-red">{{ doc.cheque_no or "" }}</td><td></td>
-					<td class="bp-red">{{ frappe.utils.formatdate(doc.cheque_date, "dd-MMM-yy") if doc.cheque_date else "" }}</td>
-				</tr>
-				{% endif %}
-				{% endif %}
-			</tbody>
-			{% endfor %}
-		</table>
-
-		{% elif mode == "cash" %}
-		<table class="items-table">
-			<colgroup><col class="c-no"><col class="c-cdesc"><col class="c-ccy"><col class="c-camt"></colgroup>
-			<thead><tr><th>No.</th><th>Description</th><th>Ccy</th><th>Paid With</th></tr></thead>
-			{% for idx, line in page %}
-			<tbody><tr>
-				<td class="bp-ctr">{{ idx }}</td>
-				<td class="bp-wrap">{{ line.text }}</td>
-				<td class="bp-ctr">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(line.amount, precision=2) }}</td>
-			</tr></tbody>
-			{% endfor %}
-		</table>
-
-		{% else %}
 		<table class="items-table">
 			<colgroup><col class="c-no"><col class="c-acc"><col class="c-jdesc"><col class="c-camt"><col class="c-camt"></colgroup>
 			<thead><tr><th>No.</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead>
@@ -204,24 +95,14 @@
 			</tr></tbody>
 			{% endfor %}
 		</table>
-		{% endif %}
 	</div>
 
 	{% if loop.last %}
 	<div class="bp-foot">
 		<div class="bp-foot-top">
-			<div class="bp-party">{% if mode == "party" %}<b>{{ ns.party_type }}&nbsp;&nbsp;: {{ ns.party }}</b><br><b>{{ party_name or "" }}</b>{% endif %}</div>
-			<div class="bp-total-label">Total</div>
-			{% if mode == "party" %}
-			<div class="bp-total-box"><table><tr><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.t1, precision=2) }}</td></tr></table></div>
-			<div class="bp-total-box"><table><tr><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.t2, precision=2) }}</td></tr></table></div>
-			{% elif mode == "cash" %}
-			<div class="bp-total-box"></div>
-			<div class="bp-total-box"><table><tr><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.t2, precision=2) }}</td></tr></table></div>
-			{% else %}
-			<div class="bp-total-box"><table><tr><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.dr, precision=2) }}</td></tr></table></div>
-			<div class="bp-total-box"><table><tr><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.cr, precision=2) }}</td></tr></table></div>
-			{% endif %}
+			<div class="bp-total-label">Total {{ ccy }}</div>
+			<div class="bp-total-box"><table><tr><td class="bp-num">{{ frappe.utils.fmt_money(ns.dr, precision=2) }}</td></tr></table></div>
+			<div class="bp-total-box"><table><tr><td class="bp-num">{{ frappe.utils.fmt_money(ns.cr, precision=2) }}</td></tr></table></div>
 		</div>
 		<div class="bp-foot-rule"></div>
 		<table class="bp-sign-boxes"><tr>

@@ -1,6 +1,6 @@
 """Create/refresh the legacy-layout print formats for the buying, stock and
 accounting documents (recreating the legacy Access prints PrtPOForm,
-PrtRDOForm, PrtStockMut*, PrtRNForm/PrtPNForm, PrtCRNForm/PrtCPNForm) and make
+PrtRDOForm, PrtStockMut*, PrtRNForm/PrtPNForm, plus a Journal Voucher) and make
 the first one per doctype its Default Print Format. HTML/CSS live in
 bp/templates/print_formats (see docs/print-format-rules.md).
 

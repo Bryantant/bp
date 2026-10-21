@@ -1,4 +1,4 @@
-/* Legacy Access voucher layouts (PrtRNForm, PrtPNForm, PrtCRNForm, PrtCPNForm) for Journal Entry.
+/* Legacy Access voucher look for Journal Entry, one Journal Voucher layout (account, description, debit, credit).
    A4 portrait. Fonts as the legacy report: Times New Roman for company/title/column headers, Courier
    New for the company address and document number, Tahoma for data. The block with totals, note and
    signatures sits at the bottom of the page (legacy page footer). Rules on th/td carry !important at
@@ -34,43 +34,30 @@
 	border: 1px solid #000 !important; font-family: "Times New Roman", Times, serif !important;
 	font-weight: bold !important; text-align: center !important; font-size: 11px !important; padding: 1px 2px !important;
 }
-.print-format .items-table th.bp-th-plain { font-weight: normal !important; }
 .print-format .items-table td { padding: 2px 2px 1px 2px !important; white-space: nowrap; overflow: hidden; }
 .print-format .items-table tbody { page-break-inside: avoid; }
-.print-format .bp-row2 td { padding-top: 3px !important; padding-bottom: 4px !important; }
-.print-format .bp-u { text-decoration: underline; }
-.print-format .bp-red, .print-format .bp-red * { color: #e00000 !important; text-decoration: underline; }
 .print-format .bp-num { text-align: right !important; }
 .print-format .bp-ctr { text-align: center !important; }
 
-/* column widths (mm of the legacy report) */
+/* column widths */
 .print-format .items-table .c-no { width: 4.3%; }
-.print-format .items-table .c-inv { width: 11%; }
-.print-format .items-table .c-date { width: 9.6%; }
-.print-format .items-table .c-desc { width: 10.6%; }
-.print-format .items-table .c-ccy { width: 4.3%; }
-.print-format .items-table .c-amt { width: 13.8%; }
-.print-format .items-table .c-rate { width: 10.1%; }
-.print-format .items-table .c-method { width: 18.2%; }
 
 /* bottom block */
 .print-format .bp-foot { border-top: 1px solid #bbb; padding-top: 4px; page-break-inside: avoid; }
 .print-format .bp-foot-top { display: flex; align-items: flex-start; }
-.print-format .bp-party { flex: 0 0 29%; }
-.print-format .bp-total-label { flex: 0 0 6%; font-weight: bold; font-size: 12px; }
-.print-format .bp-total-box { flex: 0 0 18.4%; font-weight: bold; }
+/* totals sit under the Debit and Credit columns (c-camt, 17% each) */
+.print-format .bp-total-label { flex: 1 1 auto; text-align: right; padding-right: 6px; font-weight: bold; font-size: 12px; }
+.print-format .bp-total-box { flex: 0 0 17%; font-weight: bold; }
 .print-format .bp-total-box td { font-weight: bold; white-space: nowrap; }
-.print-format .bp-tccy { width: 24%; text-align: right !important; padding-right: 4px !important; }
-.print-format .bp-foot-rule { margin: 14px 0 6px 35.2%; width: 36.8%; border-bottom: 1px solid #000; }
+.print-format .bp-foot-rule { margin: 14px 0 6px 66%; width: 34%; border-bottom: 1px solid #000; }
 .print-format .bp-sign-boxes { table-layout: fixed; }
 .print-format .bp-sign-boxes td {
 	border: 1px solid #000 !important; height: 20mm; text-align: center !important; width: 20%;
 }
 .print-format .bp-sign-boxes td.bp-note-box { width: 40%; text-align: left !important; padding: 1px 4px !important; }
 
-/* cash voucher and journal columns */
-.print-format .items-table .c-cdesc { width: 75.7%; }
-.print-format .items-table .c-camt { width: 15.5%; }
-.print-format .items-table .c-acc { width: 33%; }
-.print-format .items-table .c-jdesc { width: 31.7%; }
+/* journal columns */
+.print-format .items-table .c-camt { width: 17%; }
+.print-format .items-table .c-acc { width: 32%; }
+.print-format .items-table .c-jdesc { width: 29.7%; }
 .print-format .items-table td.bp-wrap { white-space: normal; }
