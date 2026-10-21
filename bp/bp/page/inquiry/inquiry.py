@@ -86,7 +86,8 @@ def _item_conditions(filters, alias):
 	"""Build a parametrized WHERE fragment + params for the item filters.
 
 	``alias`` is the table alias that exposes ``item_code``, ``item_name`` and
-	``item_group`` (the Item table or an invoice item child table).
+	``item_group`` (the Item table or an invoice item child table). The
+	description filter matches ``item_name``, the text shown as Description.
 	"""
 	conds, params = [], {}
 	groups = _item_groups_with_descendants(filters.get("item_group"))
@@ -96,6 +97,11 @@ def _item_conditions(filters, alias):
 	if filters.get("item"):
 		conds.append(f"{alias}.item_code = %(item)s")
 		params["item"] = filters["item"]
+	# Description: every word must appear in the item name, in any order ("milk choco").
+	for i, word in enumerate((filters.get("description") or "").split()):
+		key = f"desc_{i}"
+		conds.append(f"{alias}.item_name like %({key})s")
+		params[key] = "%" + word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 	return " and ".join(conds), params
 
 
@@ -168,7 +174,7 @@ def get_balance(filters=None):
 
 	items = frappe.db.sql(
 		f"""
-		select it.item_code, it.item_name, it.stock_uom, it.valuation_rate
+		select it.item_code, it.item_name, it.brand, it.stock_uom, it.valuation_rate
 		from `tabItem` it
 		where {where}
 		order by it.item_code
@@ -183,6 +189,7 @@ def get_balance(filters=None):
 		row = {
 			"item_code": it.item_code,
 			"item_name": it.item_name,
+			"brand": it.brand,
 			"stock_uom": it.stock_uom,
 			"total_qty": 0.0,
 			"hpp": flt(it.valuation_rate),
@@ -210,6 +217,7 @@ def get_balance(filters=None):
 	columns = [
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link"},
 		{"label": _("Description"), "fieldname": "item_name", "fieldtype": "Data"},
+		{"label": _("Brand"), "fieldname": "brand", "fieldtype": "Link"},
 	]
 	for wh in warehouses:
 		columns.append({"label": wh, "fieldname": wh, "fieldtype": "Float"})
@@ -254,11 +262,12 @@ def get_sales(filters=None):
 
 	data = frappe.db.sql(
 		f"""
-		select sii.item_code, sii.item_name, si.posting_date as date,
+		select sii.item_code, sii.item_name, itm.brand, si.posting_date as date,
 		       sii.qty, sii.uom as unit, si.currency as ccy, sii.rate as price,
 		       si.customer as cust, si.name as do_no
 		from `tabSales Invoice Item` sii
 		join `tabSales Invoice` si on si.name = sii.parent
+		left join `tabItem` itm on itm.name = sii.item_code
 		where {where}
 		order by si.posting_date desc, si.name
 		limit %(limit)s
@@ -270,6 +279,7 @@ def get_sales(filters=None):
 	columns = [
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link"},
 		{"label": _("Description"), "fieldname": "item_name", "fieldtype": "Data"},
+		{"label": _("Brand"), "fieldname": "brand", "fieldtype": "Link"},
 		{"label": _("Date"), "fieldname": "date", "fieldtype": "Date"},
 		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float"},
 		{"label": _("Unit"), "fieldname": "unit", "fieldtype": "Data"},
@@ -307,12 +317,13 @@ def get_purchase(filters=None):
 
 	data = frappe.db.sql(
 		f"""
-		select pii.item_code, pii.item_name, pi.posting_date as date,
+		select pii.item_code, pii.item_name, itm.brand, pi.posting_date as date,
 		       pii.qty, pii.uom as unit, pi.currency as ccy, pii.rate as price,
 		       pi.is_return as rtn, pi.supplier as supp, pi.name as purchase_no,
 		       pi.bill_no as supp_do_no
 		from `tabPurchase Invoice Item` pii
 		join `tabPurchase Invoice` pi on pi.name = pii.parent
+		left join `tabItem` itm on itm.name = pii.item_code
 		where {where}
 		order by pi.posting_date desc, pi.name
 		limit %(limit)s
@@ -324,6 +335,7 @@ def get_purchase(filters=None):
 	columns = [
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link"},
 		{"label": _("Description"), "fieldname": "item_name", "fieldtype": "Data"},
+		{"label": _("Brand"), "fieldname": "brand", "fieldtype": "Link"},
 		{"label": _("Date"), "fieldname": "date", "fieldtype": "Date"},
 		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float"},
 		{"label": _("Unit"), "fieldname": "unit", "fieldtype": "Data"},
@@ -359,11 +371,11 @@ def get_price_list(filters=None):
 		pluck="name",
 	)
 
-	# Item meta: description, stock uom, hpp.
+	# Item meta: description, brand, stock uom, hpp.
 	items = frappe.get_all(
 		"Item",
 		filters={"item_code": ["in", item_codes]},
-		fields=["item_code", "item_name", "stock_uom", "valuation_rate"],
+		fields=["item_code", "item_name", "brand", "stock_uom", "valuation_rate"],
 	)
 	item_meta = {it.item_code: it for it in items}
 
@@ -404,6 +416,7 @@ def get_price_list(filters=None):
 			row = {
 				"item_code": p.item_code,
 				"item_name": meta.get("item_name"),
+				"brand": meta.get("brand"),
 				"ccy": p.currency,
 				"qty": stock.get(p.item_code, 0.0),
 				"unit": uom,
@@ -423,6 +436,7 @@ def _price_list_columns(selling_lists):
 	columns = [
 		{"label": _("Item Code"), "fieldname": "item_code", "fieldtype": "Link"},
 		{"label": _("Description"), "fieldname": "item_name", "fieldtype": "Data"},
+		{"label": _("Brand"), "fieldname": "brand", "fieldtype": "Link"},
 		{"label": _("Ccy"), "fieldname": "ccy", "fieldtype": "Data"},
 		{"label": _("Qty"), "fieldname": "qty", "fieldtype": "Float"},
 		{"label": _("Unit"), "fieldname": "unit", "fieldtype": "Data"},

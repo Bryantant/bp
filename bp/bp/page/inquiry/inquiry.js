@@ -69,6 +69,9 @@ bp.Inquiry = class Inquiry {
 		this.fields.item = this.page.add_field({
 			fieldtype: 'Link', fieldname: 'item', label: __('Item'), options: 'Item',
 		});
+		this.fields.description = this.page.add_field({
+			fieldtype: 'Data', fieldname: 'description', label: __('Description'),
+		});
 		this.fields.from_date = this.page.add_field({
 			fieldtype: 'Date', fieldname: 'from_date', label: __('From'),
 			default: frappe.datetime.add_months(frappe.datetime.get_today(), -3),

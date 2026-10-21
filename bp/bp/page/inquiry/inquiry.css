@@ -5,3 +5,11 @@
 	user-select: text;
 	-webkit-user-select: text;
 }
+
+/* Desk gives every datatable body calc(100vh - 240px), which pushes the item
+   detail below the screen when there are many rows. Cap it so the detail
+   stays in view; the table scrolls inside. */
+.inquiry-table .datatable .dt-scrollable {
+	height: auto !important;
+	max-height: 45vh;
+}
