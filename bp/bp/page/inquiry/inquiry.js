@@ -172,9 +172,15 @@ bp.Inquiry = class Inquiry {
 			return;
 		}
 
+		// Body as tall as the rows, at most 45% of the screen (see inquiry.css).
+		const cell_height = 40;
+		const body_height = Math.min(data.length * cell_height + 2, Math.round(window.innerHeight * 0.45));
+		$mount.get(0).style.setProperty('--inquiry-body-height', `${body_height}px`);
+
 		new frappe.DataTable($mount.get(0), {
 			columns: columns,
 			data: data,
+			cellHeight: cell_height,
 			layout: 'fluid',
 			inlineFilters: true,
 			noDataMessage: __('No records found.'),

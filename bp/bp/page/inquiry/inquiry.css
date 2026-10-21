@@ -6,10 +6,19 @@
 	-webkit-user-select: text;
 }
 
+/* Desk sizes each filter at 1/6 of the row, so the seventh (Supplier) wrapped.
+   Let all filters share one row; they still wrap on narrow screens. */
+#page-inquiry .page-form > .frappe-control {
+	flex: 1 1 0;
+	max-width: none;
+	min-width: 140px;
+}
+
 /* Desk gives every datatable body calc(100vh - 240px), which pushes the item
    detail below the screen when there are many rows. Cap it so the detail
-   stays in view; the table scrolls inside. */
+   stays in view; the table scrolls inside. The height must be fixed (the
+   datatable's virtual list renders no rows with height: auto), so
+   inquiry.js sets --inquiry-body-height from the row count. */
 .inquiry-table .datatable .dt-scrollable {
-	height: auto !important;
-	max-height: 45vh;
+	height: var(--inquiry-body-height, 45vh) !important;
 }
