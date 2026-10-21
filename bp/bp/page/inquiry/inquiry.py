@@ -252,7 +252,11 @@ def get_sales(filters=None):
 	conds, params = _item_conditions(filters, "sii")
 	params.update({"from_date": getdate(from_date), "to_date": getdate(to_date), "limit": HISTORY_LIMIT})
 
-	where = "si.docstatus = 1 and si.posting_date between %(from_date)s and %(to_date)s"
+	# Lines without an item (e.g. a credit note booked straight to an account) are not item history.
+	where = (
+		"si.docstatus = 1 and si.posting_date between %(from_date)s and %(to_date)s"
+		" and ifnull(sii.item_code, '') != ''"
+	)
 	if conds:
 		where += " and " + conds
 	customers = _as_list(filters.get("customer"))
@@ -307,7 +311,11 @@ def get_purchase(filters=None):
 	conds, params = _item_conditions(filters, "pii")
 	params.update({"from_date": getdate(from_date), "to_date": getdate(to_date), "limit": HISTORY_LIMIT})
 
-	where = "pi.docstatus = 1 and pi.posting_date between %(from_date)s and %(to_date)s"
+	# Lines without an item (e.g. a credit note booked straight to an account) are not item history.
+	where = (
+		"pi.docstatus = 1 and pi.posting_date between %(from_date)s and %(to_date)s"
+		" and ifnull(pii.item_code, '') != ''"
+	)
 	if conds:
 		where += " and " + conds
 	suppliers = _as_list(filters.get("supplier"))
