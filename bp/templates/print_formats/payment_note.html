@@ -3,8 +3,9 @@
     PrtPNForm "Payment Note" for supplier payments; sample Image/Payment Note.pdf
     in the BP client folder). Title follows payment_type.
 
-    One line per allocated reference (invoice / order), then one line per
-    deduction row and one for any unallocated amount. Row 2 under a line holds
+    One line per allocated reference (invoice / order), one for any unallocated
+    amount, then one line per deduction row (Internal Transfer: one transfer
+    line). Row 2 under a line holds
     "Bank :" + reference no and date (red, underlined, as in the legacy print).
     Totals per currency, the note and three signature boxes sit at the bottom of
     the last page, as the legacy page footer did. Long payments run over more
@@ -50,13 +51,17 @@
 
 
 {% set is_receive = doc.payment_type == "Receive" %}
+{#- Internal Transfer: one line, Paid Amount = what left paid_from, Paid With =
+    what reached paid_to (Payment Method = paid_to); both accounts in the
+    bottom block instead of a party. -#}
+{% set is_transfer = doc.payment_type == "Internal Transfer" %}
 {% set title = "Receiving Note" if is_receive else ("Payment Note" if doc.payment_type == "Pay" else "Transfer Note") %}
-{% set bank_account = doc.paid_to if is_receive else doc.paid_from %}
+{% set bank_account = doc.paid_to if (is_receive or is_transfer) else doc.paid_from %}
 {% set method = frappe.db.get_value("Account", bank_account, "account_name") if bank_account else (doc.mode_of_payment or "") %}
-{% set pay_ccy = doc.paid_to_account_currency if is_receive else doc.paid_from_account_currency %}
-{% set party_ccy = doc.paid_from_account_currency if is_receive else doc.paid_to_account_currency %}
-{% set rate = (doc.source_exchange_rate if is_receive else doc.target_exchange_rate) or 1 %}
-{% set pay_rate = (doc.target_exchange_rate if is_receive else doc.source_exchange_rate) or 1 %}
+{% set pay_ccy = doc.paid_to_account_currency if (is_receive or is_transfer) else doc.paid_from_account_currency %}
+{% set party_ccy = doc.paid_from_account_currency if (is_receive or is_transfer) else doc.paid_to_account_currency %}
+{% set rate = (doc.source_exchange_rate if (is_receive or is_transfer) else doc.target_exchange_rate) or 1 %}
+{% set pay_rate = (doc.target_exchange_rate if (is_receive or is_transfer) else doc.source_exchange_rate) or 1 %}
 {#- party amount -> payment currency amount -#}
 {% set conv = (rate / pay_rate) if pay_rate else 1 %}
 {% set shown_rate = conv if conv >= 1 else ((1 / conv) if conv else 1) %}
@@ -86,17 +91,43 @@
 	{% set ns.lines = ns.lines + [{"kind": "ref", "inv": ref.reference_name, "date": _ref_date, "desc": _desc,
 		"amount": ref.allocated_amount or 0, "paid_with": _paid_with, "bp_px": 38.6 if _has_row2 else 17.3}] %}
 {% endfor %}
-{% if doc.unallocated_amount %}
+{% if is_transfer %}
+	{% set ns.inv_total = ns.inv_total + (doc.paid_amount or 0) %}
+	{% set ns.pay_total = ns.pay_total + (doc.received_amount or 0) %}
+	{% set ns.lines = ns.lines + [{"kind": "ref", "inv": "", "date": doc.posting_date, "desc": "Transfer",
+		"amount": doc.paid_amount or 0, "paid_with": doc.received_amount or 0, "bp_px": 38.6 if _has_row2 else 17.3}] %}
+{% endif %}
+{% if doc.unallocated_amount and not is_transfer %}
 	{% set ns.inv_total = ns.inv_total + doc.unallocated_amount %}
 	{% set ns.pay_total = ns.pay_total + doc.unallocated_amount * conv %}
 	{% set ns.lines = ns.lines + [{"kind": "unallocated", "amount": doc.unallocated_amount,
 		"paid_with": doc.unallocated_amount * conv, "bp_px": 17.3}] %}
 {% endif %}
+{#- Deductions are in company currency (d.amount); shown in the payment currency.
+    Pay: paid = allocated + deductions, so they add to Paid With.
+    Receive: received + deductions = allocated, so the deductions settle part of
+    the invoices: the bank lines show only the money received (deductions taken
+    off from the last line backwards) and the deduction lines carry the rest, as
+    in the legacy Receiving Note (both totals equal). -#}
+{% set _ded = namespace(left=0) %}
 {% for d in doc.deductions %}
-	{% set ns.pay_total = ns.pay_total + (d.amount or 0) %}
-	{% set ns.lines = ns.lines + [{"kind": "deduction", "desc": d.description or "Deduction", "paid_with": d.amount or 0,
+	{% set _amt = (d.amount or 0) / pay_rate %}
+	{% set _ded.left = _ded.left + _amt %}
+	{% set ns.pay_total = ns.pay_total + _amt %}
+	{% set ns.lines = ns.lines + [{"kind": "deduction", "desc": d.description or "Deduction", "paid_with": _amt,
 		"method": frappe.db.get_value("Account", d.account, "account_name") or d.account, "bp_px": 17.3}] %}
 {% endfor %}
+{% if is_receive and _ded.left %}
+	{% set ns.pay_total = ns.pay_total - _ded.left %}
+	{% set _bank_lines = ns.lines|selectattr("kind", "in", ["ref", "unallocated"])|list %}
+	{% for line in _bank_lines|reverse %}
+		{% set _take = _ded.left if (loop.last or _ded.left < 0) else [_ded.left, line.paid_with]|min %}
+		{% if _take %}
+			{% set _ = line.update({"paid_with": line.paid_with - _take}) %}
+			{% set _ded.left = _ded.left - _take %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
 {% set pages = bp_paginate(ns.lines, page_px=890, last_page_px=720) %}
 
 {% for page in pages %}
@@ -166,7 +197,11 @@
 	{% if loop.last %}
 	<div class="bp-foot">
 		<div class="bp-foot-top">
+			{% if is_transfer %}
+			<div class="bp-party"><b>From&nbsp;&nbsp;: {{ frappe.db.get_value("Account", doc.paid_from, "account_name") or doc.paid_from or "" }}</b><br><b>To&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {{ method }}</b></div>
+			{% else %}
 			<div class="bp-party"><b>{{ "Customer" if doc.party_type == "Customer" else ("Supplier" if doc.party_type == "Supplier" else party_label) }}&nbsp;&nbsp;: {{ doc.party or "" }}</b><br><b>{{ doc.party_name or "" }}</b></div>
+			{% endif %}
 			<div class="bp-total-label">Total</div>
 			<div class="bp-total-box">
 				<table><tr><td class="bp-tccy">{{ party_ccy }}</td><td class="bp-num">{{ frappe.utils.fmt_money(ns.inv_total, precision=2) }}</td></tr></table>
