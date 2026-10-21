@@ -19,6 +19,15 @@ frappe.pages['inquiry'].on_page_show = function (wrapper) {
 
 bp = window.bp || {};
 
+// Tab-specific filters (second filter row); filters not listed here show on every tab.
+const TAB_FILTERS = {
+	balance: [],
+	sales: ['customer', 'from_date', 'to_date'],
+	purchase: ['supplier', 'from_date', 'to_date'],
+	price_list: [],
+};
+const ALL_TAB_FILTERS = ['customer', 'supplier', 'from_date', 'to_date'];
+
 bp.Inquiry = class Inquiry {
 	constructor(page) {
 		this.page = page;
@@ -56,6 +65,7 @@ bp.Inquiry = class Inquiry {
 		this.$tabs.find('.nav-link').removeClass('active');
 		$link.addClass('active');
 		this.active_tab = key;
+		this.update_filters();
 		this.$detail.hide().empty();
 		this.$body.empty();
 	}
@@ -72,14 +82,9 @@ bp.Inquiry = class Inquiry {
 		this.fields.description = this.page.add_field({
 			fieldtype: 'Data', fieldname: 'description', label: __('Description'),
 		});
-		this.fields.from_date = this.page.add_field({
-			fieldtype: 'Date', fieldname: 'from_date', label: __('From'),
-			default: frappe.datetime.add_months(frappe.datetime.get_today(), -3),
-		});
-		this.fields.to_date = this.page.add_field({
-			fieldtype: 'Date', fieldname: 'to_date', label: __('To'),
-			default: frappe.datetime.get_today(),
-		});
+
+		// Second row: filters that only apply to some tabs (see TAB_FILTERS).
+		$('<div class="inquiry-filter-break"></div>').appendTo(this.page.page_form);
 		this.fields.customer = this.page.add_field({
 			fieldtype: 'MultiSelectList', fieldname: 'customer', label: __('Customer'),
 			get_data: (txt) => frappe.db.get_link_options('Customer', txt),
@@ -88,6 +93,15 @@ bp.Inquiry = class Inquiry {
 			fieldtype: 'MultiSelectList', fieldname: 'supplier', label: __('Supplier'),
 			get_data: (txt) => frappe.db.get_link_options('Supplier', txt),
 		});
+		this.fields.from_date = this.page.add_field({
+			fieldtype: 'Date', fieldname: 'from_date', label: __('From'),
+			default: frappe.datetime.add_months(frappe.datetime.get_today(), -3),
+		});
+		this.fields.to_date = this.page.add_field({
+			fieldtype: 'Date', fieldname: 'to_date', label: __('To'),
+			default: frappe.datetime.get_today(),
+		});
+		this.update_filters();
 
 		// Run on Enter from any filter input.
 		this.page.wrapper.on('keydown', '.page-form input', (e) => {
@@ -95,6 +109,16 @@ bp.Inquiry = class Inquiry {
 				this.run_active_tab();
 			}
 		});
+	}
+
+	uses_filter(fieldname) {
+		return !ALL_TAB_FILTERS.includes(fieldname)
+			|| (TAB_FILTERS[this.active_tab] || []).includes(fieldname);
+	}
+
+	// Show only the filters the active tab uses; the rest stay hidden and are not sent.
+	update_filters() {
+		Object.keys(this.fields).forEach((k) => this.fields[k].$wrapper.toggle(this.uses_filter(k)));
 	}
 
 	make_tabs() {
@@ -132,6 +156,7 @@ bp.Inquiry = class Inquiry {
 			$html.find('.nav-link').removeClass('active');
 			$(e.currentTarget).addClass('active');
 			this.active_tab = key;
+			this.update_filters();
 			this.$detail.hide().empty();
 			this.run_active_tab();
 		});
@@ -140,7 +165,7 @@ bp.Inquiry = class Inquiry {
 	collect_filters() {
 		const f = {};
 		Object.keys(this.fields).forEach((k) => {
-			f[k] = this.fields[k].get_value();
+			if (this.uses_filter(k)) f[k] = this.fields[k].get_value();
 		});
 		return f;
 	}

@@ -6,12 +6,11 @@
 	-webkit-user-select: text;
 }
 
-/* Desk sizes each filter at 1/6 of the row, so the seventh (Supplier) wrapped.
-   Let all filters share one row; they still wrap on narrow screens. */
-#page-inquiry .page-form > .frappe-control {
-	flex: 1 1 0;
-	max-width: none;
-	min-width: 140px;
+/* Filters on two rows: item filters first, then the tab's own filters
+   (customer/supplier, dates). inquiry.js inserts this break between them. */
+#page-inquiry .page-form .inquiry-filter-break {
+	flex-basis: 100%;
+	height: 0;
 }
 
 /* Desk gives every datatable body calc(100vh - 240px), which pushes the item
