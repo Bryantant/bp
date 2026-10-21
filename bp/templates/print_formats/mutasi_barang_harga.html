@@ -42,12 +42,6 @@
 {% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
 {% set company_contact_line = _contact_parts|join(", ") %}
 
-{#- Item description: line 1 item name, line 2 brand/model, from the description
-    field (HTML from the editor, or plain text with a newline). -#}
-{% macro item_desc(row) -%}
-	{%- set _d = row.description or row.item_name or "" -%}
-	{%- if "<" in _d -%}{{ _d|safe }}{%- else -%}{{ _d|e|replace("\n", "<br>")|safe }}{%- endif -%}
-{%- endmacro %}
 {#- Warehouse code as on the legacy prints: Warehouse.custom_nama_warehouse, else
     the name without its " - <company abbr>" suffix. -#}
 {% macro wh_code(wh) -%}
@@ -101,7 +95,7 @@
 			{% set _amt = row.basic_amount or ((row.qty or 0) * (row.basic_rate or 0)) %}
 			{% set ns.total = ns.total + _amt %}
 			<tr>
-				<td class="bp-ctr">{{ loop.index }}</td><td>{{ item_desc(row) }}</td>
+				<td class="bp-ctr">{{ loop.index }}</td><td class="bp-desc-1">{{ bp_item_line(row.description or row.item_name) }}</td>
 				<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0 if is_set else 2) }}</td><td class="bp-ctr">{{ row.uom or "" }}</td>
 				{% if show_price %}
 				<td class="bp-ctr">{{ doc.get("currency") or "IDR" }}</td><td class="bp-num">{{ frappe.utils.fmt_money(row.basic_rate or 0, precision=2) }}</td>

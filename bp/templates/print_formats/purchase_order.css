@@ -133,4 +133,5 @@
 /* one .bp-legacy-format per A4 sheet (pages from bp_paginate in the template) */
 .print-format .bp-sheet-break { break-after: page; page-break-after: always; }
 /* description parts (<p> from the editor) print as tight lines, as bp_paginate counts them */
-.print-format .items-table td p { margin: 0 !important; }
+.print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
+.print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }

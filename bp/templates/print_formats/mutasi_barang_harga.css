@@ -134,3 +134,5 @@
 .print-format .bp-sign-4 td { width: auto; }
 .print-format .bp-sign-4 .bp-sign-line span { width: 130px; }
 .print-format .bp-sign-4 .bp-tgl td { text-align: left !important; padding-left: 20px !important; }
+.print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
+.print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }

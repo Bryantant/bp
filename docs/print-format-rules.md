@@ -316,6 +316,9 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
 - The two variants of Penerimaan Barang and Mutasi Barang are separate files with the same layout and a
   `show_price` flag at the top; keep them in step when editing.
 - Standard print formats of these doctypes are still enabled (only Sales Invoice's were disabled).
+- **Description on one row (Bry, 2026-10-21):** Purchase Order, Penerimaan Barang (+ Harga) and Mutasi Barang
+  (+ Harga) print DESCRIPTION through `bp_item_line` like the Sales Invoice (see "One row per line"): body cells
+  `nowrap`, ellipsis when too long; `bp_paginate(..., one_line=True)` counts each line as one row.
 
 ## 3. Technical Lessons
 

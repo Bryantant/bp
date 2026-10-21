@@ -39,12 +39,6 @@
 {% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
 {% set company_contact_line = _contact_parts|join(", ") %}
 
-{#- Item description: line 1 item name, line 2 brand/model, from the description
-    field (HTML from the editor, or plain text with a newline). -#}
-{% macro item_desc(row) -%}
-	{%- set _d = row.description or row.item_name or "" -%}
-	{%- if "<" in _d -%}{{ _d|safe }}{%- else -%}{{ _d|e|replace("\n", "<br>")|safe }}{%- endif -%}
-{%- endmacro %}
 {#- Warehouse code as on the legacy prints: Warehouse.custom_nama_warehouse, else
     the name without its " - <company abbr>" suffix. -#}
 {% macro wh_code(wh) -%}
@@ -59,10 +53,10 @@
 {% set ns = namespace(gross=0, disc=0) %}
 {#- One A4 sheet per page: full header with Page x / N on each, the lines
     bp_paginate (bp/utils/print_layout.py) puts there, note, totals and
-    signatures on the last sheet only. A line is 5 px plus 14.3 px per printed
-    description line (item name, brand/model, each wrapped at chars_per_line).
+    signatures on the last sheet only. Every line prints on one row (description
+    joined by bp_item_line, as on the Sales Invoice): 19.3 px each.
     Re-check page_px / last_page_px after changing fonts, header or footer. -#}
-{% set pages = bp_paginate(doc.items, chars_per_line=37, page_px=850, last_page_px=658) %}
+{% set pages = bp_paginate(doc.items, one_line=True, page_px=850, last_page_px=658) %}
 {% for page in pages %}
 <div class="bp-legacy-format{% if not loop.last %} bp-sheet-break{% endif %}">
 
@@ -107,7 +101,7 @@
 			{% set ns.gross = ns.gross + _gross %}
 			{% set ns.disc = ns.disc + (_gross - (row.amount or 0)) %}
 			<tr>
-				<td class="bp-ctr">{{ idx }}</td><td>{{ item_desc(row) }}</td>
+				<td class="bp-ctr">{{ idx }}</td><td class="bp-desc-1">{{ bp_item_line(row.description or row.item_name) }}</td>
 				<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0) }}</td><td class="bp-ctr">{{ row.uom or "" }}</td>
 				<td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(_price, precision=2) }}</td>
 				<td class="bp-num">{{ "%.2f"|format(row.discount_percentage or 0) }}</td>
