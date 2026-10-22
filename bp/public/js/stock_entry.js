@@ -22,7 +22,7 @@ frappe.provide("bp.stock_entry");
 
 bp.stock_entry = {
 	// Mirrors bp/overrides/stock_entry.py: sales admins may only relocate stock (HT-8).
-	SALES_ROLES: ["Sales User", "BP Sales User"],
+	SALES_ROLES: ["Sales User"],
 
 	FULL_ACCESS_ROLES: [
 		"Stock User",

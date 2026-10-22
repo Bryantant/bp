@@ -16,15 +16,14 @@ def _entry(purpose):
 
 class TestStockEntryTypeByRole(IntegrationTestCase):
 	def test_sales_only_user_may_only_relocate(self):
-		for sales_role in ("Sales User", "BP Sales User"):
-			with patch(ROLES, return_value=[sales_role, "Employee"]):
-				stock_entry.validate(_entry("Material Transfer"))
-				for purpose in ("Material Issue", "Material Receipt", "Repack"):
-					with self.assertRaises(frappe.ValidationError):
-						stock_entry.validate(_entry(purpose))
+		with patch(ROLES, return_value=["Sales User", "Employee"]):
+			stock_entry.validate(_entry("Material Transfer"))
+			for purpose in ("Material Issue", "Material Receipt", "Repack"):
+				with self.assertRaises(frappe.ValidationError):
+					stock_entry.validate(_entry(purpose))
 
 	def test_accounting_and_stock_roles_use_every_type(self):
-		for roles in (["Accounts User"], ["Accounts Manager"], ["Sales User", "Stock User"], ["BP Sales User", "Stock User"]):
+		for roles in (["Accounts User"], ["Accounts Manager"], ["Sales User", "Stock User"]):
 			with patch(ROLES, return_value=roles):
 				for purpose in ("Material Issue", "Material Receipt", "Repack", "Material Transfer"):
 					stock_entry.validate(_entry(purpose))

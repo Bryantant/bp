@@ -2,8 +2,8 @@
 
 DIPIN confirmed on WhatsApp 2026-10-08 (task HT-8): sales admins may only
 relocate stock between warehouses; the accounting team may use every type.
-A user is "sales only" when they hold a sales role (Sales User, or BP Sales
-User, the trimmed copy for sales admins, 2026-10-19) but none of the roles that
+A user is "sales only" when they hold Sales User (the BP Sales User copy of
+2026-10-19 was merged back into it on 2026-10-23) but none of the roles that
 already had full Stock Entry access or the accounting roles below. Such a
 user may only post the Material Transfer purpose (type "Relokasi Barang").
 """
@@ -13,7 +13,7 @@ from frappe import _
 
 from bp.patches.v1_0.apply_document_numbering_oct15 import STOCK_ENTRY_SERIES
 
-SALES_ROLES = {"Sales User", "BP Sales User"}
+SALES_ROLES = {"Sales User"}
 FULL_ACCESS_ROLES = {
 	"Stock User",
 	"Stock Manager",
