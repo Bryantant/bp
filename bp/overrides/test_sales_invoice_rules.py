@@ -1,9 +1,12 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from bp.overrides.sales_invoice import before_naming, get_warehouse_name_code
+from bp.overrides.sales_invoice import before_insert, before_naming, get_warehouse_name_code
 from bp.patches.v1_0.allow_non_stock_sales_invoices import WAREHOUSE_SERIES
-from bp.patches.v1_0.apply_document_numbering_oct15 import SALES_INVOICE_SERIES_OCT15, SALES_NON_STOCK_SERIES_OCT15
+from bp.patches.v1_0.apply_document_numbering_oct15 import (
+	SALES_INVOICE_SERIES_OCT15,
+	SALES_NON_STOCK_SERIES_OCT15,
+)
 
 
 def invoice(**kw):
@@ -36,6 +39,22 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		before_naming(doc)
 		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
 
+	def test_invoice_from_delivery_note_is_a_goods_invoice(self):
+		"""Billed from a Surat Jalan: Update Stock off, but it sells goods, so
+		INV- and not the value-only ND- series."""
+		doc = invoice(
+			set_warehouse=None, items=[frappe._dict(delivery_note="SJ-A26100001", warehouse="A - BP")]
+		)
+		before_insert(doc)
+		self.assertEqual(doc.update_stock, 0)
+		before_naming(doc)
+		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
+
+	def test_return_keeps_its_update_stock(self):
+		doc = invoice(is_return=1, items=[frappe._dict(delivery_note="SJ-A26100001")])
+		before_insert(doc)
+		self.assertEqual(doc.update_stock, 1)
+
 	def test_a_series_picked_deliberately_is_left_alone(self):
 		doc = invoice(update_stock=0, set_warehouse=None, naming_series="ACC-SINV-.YYYY.-")
 		before_naming(doc)
@@ -57,7 +76,9 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		"""Create > Return / Credit Note blanks the header warehouse (standard
 		ERPNext); the return must still be named SR + warehouse letter."""
 		wh = frappe.db.get_value("Warehouse", {"is_group": 0}, ["name", "warehouse_name"], as_dict=True)
-		doc = invoice(set_warehouse=None, items=[frappe._dict(warehouse=None), frappe._dict(warehouse=wh.name)])
+		doc = invoice(
+			set_warehouse=None, items=[frappe._dict(warehouse=None), frappe._dict(warehouse=wh.name)]
+		)
 		self.assertEqual(get_warehouse_name_code(doc), wh.warehouse_name)
 
 	def test_no_warehouse_anywhere_gives_no_code(self):

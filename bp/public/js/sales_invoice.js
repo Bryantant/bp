@@ -1,4 +1,16 @@
 frappe.ui.form.on("Sales Invoice", {
+	onload: function (frm) {
+		// Made from a Surat Jalan: the goods already left, so Update Stock is
+		// off (bp.overrides.sales_invoice.before_insert does the same on save).
+		if (
+			frm.is_new() &&
+			!frm.doc.is_return &&
+			(frm.doc.items || []).some((d) => d.delivery_note)
+		) {
+			frm.set_value("update_stock", 0);
+		}
+	},
+
 	refresh: function (frm) {
 		frm.set_query("bp_sales_person", function () {
 			return { filters: { is_group: 0 } };
@@ -48,7 +60,11 @@ bp.sales_invoice = {
 		if (!PrintView || PrintView.prototype.__bp_patched) return;
 		var original = PrintView.prototype.set_default_print_format;
 		PrintView.prototype.set_default_print_format = function () {
-			if (this.frm && this.frm.doctype === "Sales Invoice" && this.frm.meta.__bp_default_print_format !== undefined) {
+			if (
+				this.frm &&
+				this.frm.doctype === "Sales Invoice" &&
+				this.frm.meta.__bp_default_print_format !== undefined
+			) {
 				return this.set_print_format_value(this.frm.meta.default_print_format || "");
 			}
 			return original.apply(this, arguments);
