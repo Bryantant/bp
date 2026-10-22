@@ -6,6 +6,28 @@
 	-webkit-user-select: text;
 }
 
+/* Denser than the desk default, closer to the old Access datasheet: more rows
+   and a wider Description fit on screen. */
+.inquiry-table .dt-cell__content {
+	font-size: 13px;
+}
+
+/* Row numbers act as the Access record selector (click, Shift+click,
+   Ctrl/Cmd+click), see inquiry.js select_row. */
+.inquiry-table .dt-cell--col-0,
+.inquiry-table .dt-cell--col-0 .dt-cell__content {
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* Table body height: the screen minus the filters above and the remark strip
+   and item detail below, so all of it fits without scrolling the page. */
+#page-inquiry {
+	--inquiry-body-height: max(230px, calc(100vh - 560px));
+	--inquiry-selected-bg: var(--blue-100);
+}
+
 /* Filters on two rows: item filters first, then the tab's own filters
    (customer/supplier, dates). inquiry.js inserts this break between them. */
 #page-inquiry .page-form .inquiry-filter-break {
@@ -13,11 +35,55 @@
 	height: 0;
 }
 
-/* Desk gives every datatable body calc(100vh - 240px), which pushes the item
-   detail below the screen when there are many rows. Cap it so the detail
-   stays in view; the table scrolls inside. The height must be fixed (the
-   datatable's virtual list renders no rows with height: auto), so
-   inquiry.js sets --inquiry-body-height from the row count. */
+/* Search, Select All and Copy at the end of the second filter row, close to
+   the filters and the table, as in the old program. */
+#page-inquiry .page-form .inquiry-actions {
+	display: flex;
+	gap: 8px;
+	align-items: flex-end;
+	margin-left: auto;
+	padding: 0 8px 4px;
+}
+#page-inquiry .page-form .inquiry-actions .btn {
+	min-width: 96px;
+}
+
+/* Fixed table height whatever the row count, so the remark/party strip and
+   the item detail below always sit at the same place. The height must be
+   fixed anyway (the datatable's virtual list renders no rows with height:
+   auto). .inquiry-empty takes the same room when there is no table: body
+   plus the header and the inline filter row. */
 .inquiry-table .datatable .dt-scrollable {
-	height: var(--inquiry-body-height, 45vh) !important;
+	height: var(--inquiry-body-height) !important;
+	/* The datatable sizes the body to the sum of the columns; the vertical
+	   scrollbar then forces a horizontal one. Use the full table width. */
+	width: 100% !important;
+}
+#page-inquiry .inquiry-empty {
+	height: calc(var(--inquiry-body-height) + 70px);
+	padding: 24px 4px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+}
+
+/* Invoice remark (left) and customer/supplier (right) of the clicked row. */
+#page-inquiry .inquiry-info {
+	display: flex;
+	gap: 12px;
+	margin-top: 10px;
+}
+#page-inquiry .inquiry-info > div {
+	min-height: 52px;
+	padding: 6px 10px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--subtle-fg);
+	font-weight: 600;
+	white-space: pre-wrap;
+}
+#page-inquiry .inquiry-remark {
+	flex: 1 1 60%;
+}
+#page-inquiry .inquiry-party {
+	flex: 1 1 40%;
 }

@@ -3,7 +3,7 @@
 
 from frappe.tests import UnitTestCase
 
-from bp.bp.page.inquiry.inquiry import _item_conditions
+from bp.bp.page.inquiry.inquiry import _clean_remarks, _item_conditions
 
 
 class TestInquiryDescriptionFilter(UnitTestCase):
@@ -18,3 +18,20 @@ class TestInquiryDescriptionFilter(UnitTestCase):
 
 	def test_empty_description_adds_nothing(self):
 		self.assertEqual(_item_conditions({"description": "   "}, "it"), ("", {}))
+
+
+class TestInquiryItemFilter(UnitTestCase):
+	def test_several_items(self):
+		conds, params = _item_conditions({"item": ["A-1", "", "B-2"]}, "it")
+		self.assertEqual(conds, "it.item_code in %(items)s")
+		self.assertEqual(params, {"items": ("A-1", "B-2")})
+
+	def test_single_item_still_accepted(self):
+		_conds, params = _item_conditions({"item": "A-1"}, "it")
+		self.assertEqual(params, {"items": ("A-1",)})
+
+
+class TestInquiryRemarks(UnitTestCase):
+	def test_placeholder_is_blanked(self):
+		rows = _clean_remarks([{"remarks": "No Remarks"}, {"remarks": "DI JEMPUT PULAU MAS"}, {"remarks": None}])
+		self.assertEqual([r["remarks"] for r in rows], [None, "DI JEMPUT PULAU MAS", None])

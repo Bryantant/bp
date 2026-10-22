@@ -9,7 +9,9 @@ uniform ``{"columns": [...], "data": [...]}`` payload so the client can render
 dynamic columns (warehouses, price lists) generically.
 
 Column objects are ``{"label", "fieldname", "fieldtype"}``; every row in
-``data`` is a dict keyed by ``fieldname``.
+``data`` is a dict keyed by ``fieldname``. Sales and Purchase rows also carry
+``party_name`` and ``remarks`` (no column): the page shows them below the table
+for the selected row, like the old program.
 """
 
 import erpnext
@@ -40,6 +42,15 @@ def _as_list(value):
 	if isinstance(value, (list, tuple)):
 		return [v for v in value if v]
 	return [value]
+
+
+def _clean_remarks(rows):
+	"""Blank the placeholder ERPNext writes into an invoice without remarks."""
+	placeholders = {"No Remarks", _("No Remarks")}
+	for row in rows:
+		if (row.get("remarks") or "").strip() in placeholders:
+			row["remarks"] = None
+	return rows
 
 
 def _default_company():
@@ -94,9 +105,10 @@ def _item_conditions(filters, alias):
 	if groups:
 		conds.append(f"{alias}.item_group in %(item_groups)s")
 		params["item_groups"] = tuple(groups)
-	if filters.get("item"):
-		conds.append(f"{alias}.item_code = %(item)s")
-		params["item"] = filters["item"]
+	items = _as_list(filters.get("item"))
+	if items:
+		conds.append(f"{alias}.item_code in %(items)s")
+		params["items"] = tuple(items)
 	# Description: every word must appear in the item name, in any order ("milk choco").
 	for i, word in enumerate((filters.get("description") or "").split()):
 		key = f"desc_{i}"
@@ -259,16 +271,16 @@ def get_sales(filters=None):
 	)
 	if conds:
 		where += " and " + conds
-	customers = _as_list(filters.get("customer"))
-	if customers:
-		where += " and si.customer in %(customers)s"
-		params["customers"] = tuple(customers)
+	if filters.get("customer"):
+		where += " and si.customer = %(customer)s"
+		params["customer"] = filters["customer"]
 
 	data = frappe.db.sql(
 		f"""
 		select sii.item_code, sii.item_name, itm.brand, si.posting_date as date,
 		       sii.qty, sii.uom as unit, si.currency as ccy, sii.rate as price,
-		       si.customer as cust, si.name as do_no
+		       si.customer as cust, si.name as do_no,
+		       si.customer_name as party_name, si.remarks
 		from `tabSales Invoice Item` sii
 		join `tabSales Invoice` si on si.name = sii.parent
 		left join `tabItem` itm on itm.name = sii.item_code
@@ -293,7 +305,7 @@ def get_sales(filters=None):
 		{"label": _("DO No."), "fieldname": "do_no", "fieldtype": "Link"},
 	]
 
-	return {"columns": columns, "data": data}
+	return {"columns": columns, "data": _clean_remarks(data)}
 
 
 # ---------------------------------------------------------------------------
@@ -318,17 +330,17 @@ def get_purchase(filters=None):
 	)
 	if conds:
 		where += " and " + conds
-	suppliers = _as_list(filters.get("supplier"))
-	if suppliers:
-		where += " and pi.supplier in %(suppliers)s"
-		params["suppliers"] = tuple(suppliers)
+	if filters.get("supplier"):
+		where += " and pi.supplier = %(supplier)s"
+		params["supplier"] = filters["supplier"]
 
 	data = frappe.db.sql(
 		f"""
 		select pii.item_code, pii.item_name, itm.brand, pi.posting_date as date,
 		       pii.qty, pii.uom as unit, pi.currency as ccy, pii.rate as price,
 		       pi.is_return as rtn, pi.supplier as supp, pi.name as purchase_no,
-		       pi.bill_no as supp_do_no
+		       pi.bill_no as supp_do_no,
+		       pi.supplier_name as party_name, pi.remarks
 		from `tabPurchase Invoice Item` pii
 		join `tabPurchase Invoice` pi on pi.name = pii.parent
 		left join `tabItem` itm on itm.name = pii.item_code
@@ -355,7 +367,7 @@ def get_purchase(filters=None):
 		{"label": _("Supp DO No."), "fieldname": "supp_do_no", "fieldtype": "Data"},
 	]
 
-	return {"columns": columns, "data": data}
+	return {"columns": columns, "data": _clean_remarks(data)}
 
 
 # ---------------------------------------------------------------------------
