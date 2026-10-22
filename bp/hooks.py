@@ -42,9 +42,9 @@ update_website_context = ["bp.storefront.app_shell.update_website_context"]
 
 # Fixtures
 # --------
-# "Hicom -" scripts belong to the cross-client access control (hicom16/scripts/hicom_access_control),
-# installed per site - keep them out of bp's fixtures.
-fixtures = [{"dt": "Client Script", "filters": [["name", "not like", "Hicom -%"]]}]
+# None. Client Scripts, Server Scripts, Custom Fields, Property Setters and Print Formats are built in the UI and
+# owned by the site (prod is the source of truth), so they can be changed in prod without a deploy. Exporting them
+# here would make `bench migrate` overwrite edits made in prod (decided by Bry, 2026-10-22).
 
 # include js, css files in header of web template
 # web_include_css = "/assets/bp/css/bp.css"
@@ -186,6 +186,7 @@ after_migrate = [
 
 doc_events = {
 	"Sales Invoice": {
+		"before_insert": "bp.overrides.sales_invoice.before_insert",
 		"before_naming": "bp.overrides.sales_invoice.before_naming",
 		"validate": [
 			"bp.overrides.sales_invoice.validate",
@@ -232,7 +233,6 @@ doc_events = {
 # Custom tokens usable inside naming series patterns (frappe.model.naming).
 override_doctype_class = {
 	"Sales Invoice": "bp.overrides.sales_invoice.BPSalesInvoice",
-	"Journal Entry": "bp.overrides.journal_entry.BPJournalEntry",
 }
 
 naming_series_variables = {
@@ -346,5 +346,3 @@ override_whitelisted_methods = {
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-
-

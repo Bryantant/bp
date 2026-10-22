@@ -14,23 +14,19 @@ from bp.patches.v1_0.apply_document_numbering_oct15 import (
 from bp.patches.v1_0.name_invoices_and_returns_by_warehouse import SALES_RETURN_SERIES
 from bp.utils.cascading_discount import recalculate_cascading_discount as _recalculate_cascading_discount
 
-
 # ---------------------------------------------------------------------------
 # Controller override
 #
-# Legacy Import (bp.utils.legacy_import) submits invoices the client already
-# issued in the old system, so ERP's credit-limit block would be refusing an
-# invoice the customer has physically received -- the same reasoning as the
-# active invoice limit below. check_credit_limit() is called from core's
-# on_submit and takes no bypass argument, so the only clean way to skip it is
-# this controller override (registered via override_doctype_class in hooks.py).
-# Outside an import run nothing changes.
+# ERP's credit-limit block runs from core's on_submit and takes no bypass
+# argument, so the BP Settings switch "Enforce Credit Limit" (used while the
+# site is set up or trialled) needs this controller override (registered via
+# override_doctype_class in hooks.py).
 # ---------------------------------------------------------------------------
 
 
 class BPSalesInvoice(SalesInvoice):
 	def check_credit_limit(self):
-		if frappe.flags.get("bp_legacy_import") or not enforced("enforce_credit_limit"):
+		if not enforced("enforce_credit_limit"):
 			return
 		super().check_credit_limit()
 
@@ -44,7 +40,9 @@ def enforced(setting):
 	"""
 	# Read the raw row: get_single_value() casts a never-saved Check to 0, which
 	# would make every newly added switch start life switched OFF.
-	row = frappe.db.sql("select value from `tabSingles` where doctype = %s and field = %s", ("BP Settings", setting))
+	row = frappe.db.sql(
+		"select value from `tabSingles` where doctype = %s and field = %s", ("BP Settings", setting)
+	)
 	return True if not row or row[0][0] is None else bool(cint(row[0][0]))
 
 
@@ -81,6 +79,23 @@ def get_warehouse_name_code(doc, token=None):
 	if not warehouse:
 		return ""
 	return frappe.db.get_value("Warehouse", warehouse, "warehouse_name") or ""
+
+
+def _billed_from_delivery_note(doc):
+	"""Billing goods that already left with a Surat Jalan (Delivery Note)."""
+	return not doc.get("is_return") and any(item.get("delivery_note") for item in doc.get("items") or [])
+
+
+def before_insert(doc, method=None):
+	"""An invoice made from a Surat Jalan does not move stock again.
+
+	Update Stock defaults to on (Property Setter), and Create > Sales Invoice on
+	a Delivery Note keeps that default, so the first save failed with "Stock
+	cannot be updated against the following Delivery Notes". Runs before
+	before_naming, which still names it as a goods invoice.
+	"""
+	if _billed_from_delivery_note(doc):
+		doc.update_stock = 0
 
 
 def before_naming(doc, method=None):
@@ -121,7 +136,7 @@ def before_naming(doc, method=None):
 	elif doc.is_return and not doc.update_stock:
 		# Nota Kredit AR, a return that moves no goods: AR-NC-26100001.
 		doc.naming_series = SALES_CREDIT_NOTE_SERIES
-	elif not doc.update_stock:
+	elif not doc.update_stock and not _billed_from_delivery_note(doc):
 		doc.naming_series = SALES_NON_STOCK_SERIES_OCT15
 	elif doc.is_return:
 		# Same warehouse code with SR- in front and its own counter, so a
@@ -130,7 +145,8 @@ def before_naming(doc, method=None):
 		doc.naming_series = SALES_RETURN_SERIES_OCT15
 	else:
 		# INV- + warehouse code (Bry 2026-10-17): INV-A26100001. Earlier
-		# invoices keep A26100002.
+		# invoices keep A26100002. An invoice from a Surat Jalan is a goods
+		# invoice too, with Update Stock off; its rows carry the warehouse.
 		doc.naming_series = SALES_INVOICE_SERIES_OCT15
 
 
@@ -184,15 +200,13 @@ def recalculate_cascading_discount(doc, method=None):
 # A Customer may cap how many of their submitted invoices can stay unpaid at
 # once (Customer.custom_max_active_invoices; blank/0 = no limit). An invoice
 # counts as "active" purely by outstanding_amount > 0 -- delivery status is
-# not considered. Enforced only at submit (drafts are unrestricted). Two
-# bypasses: Legacy Import (bp.utils.legacy_import), because those invoices
-# were already issued in the old system and the limit cannot un-issue them,
-# and the BP Settings switch used while the site is set up or trialled.
+# not considered. Enforced only at submit (drafts are unrestricted). Bypass:
+# the BP Settings switch used while the site is set up or trialled.
 # ---------------------------------------------------------------------------
 
 
 def check_active_invoice_limit(doc, method=None):
-	if doc.is_return or frappe.flags.get("bp_legacy_import"):
+	if doc.is_return:
 		return
 
 	if not enforced("enforce_active_invoice_limit"):
@@ -339,7 +353,9 @@ def _gate(doc, print_format):
 	# custom pdf_generator hook is set (this site uses "chrome"), Frappe
 	# returns the PDF before ever calling on_print_pdf, so that hook never
 	# fired here and prints were silently never counted.
-	actual = bool(frappe.form_dict.get("trigger_print")) or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
+	actual = (
+		bool(frappe.form_dict.get("trigger_print")) or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
+	)
 	if not actual:
 		return
 

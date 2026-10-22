@@ -1,7 +1,7 @@
 {
  "app": "bp",
  "charts": [],
- "content": "[{\"id\": \"setupHeader\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup</b></span>\", \"col\": 12}}, {\"id\": \"cardMaster\", \"type\": \"card\", \"data\": {\"card_name\": \"Master\", \"col\": 4}}, {\"id\": \"cardTrading\", \"type\": \"card\", \"data\": {\"card_name\": \"Trading\", \"col\": 4}}, {\"id\": \"cardMigration\", \"type\": \"card\", \"data\": {\"card_name\": \"Migration\", \"col\": 4}}]",
+ "content": "[{\"id\": \"setupHeader\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Setup</b></span>\", \"col\": 12}}, {\"id\": \"cardMaster\", \"type\": \"card\", \"data\": {\"card_name\": \"Master\", \"col\": 4}}, {\"id\": \"cardTrading\", \"type\": \"card\", \"data\": {\"card_name\": \"Trading\", \"col\": 4}}, {\"id\": \"cardSettings\", \"type\": \"card\", \"data\": {\"card_name\": \"Settings\", \"col\": 4}}]",
  "creation": "2026-06-17 00:00:00.000000",
  "custom_blocks": [],
  "docstatus": 0,
@@ -152,30 +152,10 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Migration",
+   "label": "Settings",
    "link_count": 0,
    "onboard": 0,
    "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Legacy Import",
-   "link_count": 0,
-   "link_to": "Legacy Import",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Legacy Import Log",
-   "link_count": 0,
-   "link_to": "Legacy Import Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
   },
   {
    "hidden": 0,
@@ -188,7 +168,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-06-17 00:00:00.000000",
+ "modified": "2026-10-23 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Setup",

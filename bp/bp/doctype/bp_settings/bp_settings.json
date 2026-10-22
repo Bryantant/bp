@@ -18,18 +18,13 @@
   "sales_invoice_import_section",
   "import_placeholder_item",
   "legacy_import_section",
-  "legacy_import_enabled",
   "legacy_db_host",
   "legacy_db_port",
   "legacy_db_name",
   "column_break_legacy_db",
   "legacy_db_user",
   "legacy_db_password",
-  "test_legacy_connection",
-  "legacy_mapping_section",
-  "legacy_warehouse_map",
-  "legacy_payment_method_map",
-  "legacy_amount_tolerance"
+  "test_legacy_connection"
  ],
  "fields": [
   {
@@ -111,14 +106,8 @@
    "collapsible": 1,
    "fieldname": "legacy_import_section",
    "fieldtype": "Section Break",
-   "label": "Old System Import (Migration)"
-  },
-  {
-   "default": "0",
-   "description": "Mengizinkan menjalankan batch Legacy Import. Matikan saat cutover agar tidak ada lagi data yang ditarik dari sistem lama.",
-   "fieldname": "legacy_import_enabled",
-   "fieldtype": "Check",
-   "label": "Legacy Import Enabled"
+   "label": "Old System Database (Migration)",
+   "description": "Koneksi ke MySQL lama untuk skrip impor master, saldo awal, harga dan salesman (bp.utils.import_legacy_*)."
   },
   {
    "fieldname": "legacy_db_host",
@@ -155,37 +144,11 @@
    "fieldname": "test_legacy_connection",
    "fieldtype": "Button",
    "label": "Test Connection"
-  },
-  {
-   "fieldname": "legacy_mapping_section",
-   "fieldtype": "Section Break",
-   "label": "Old System Mapping"
-  },
-  {
-   "description": "Setiap cabang sistem lama yang muncul pada dokumen yang diimpor harus dipetakan; jika tidak, dokumen tersebut ditolak.",
-   "fieldname": "legacy_warehouse_map",
-   "fieldtype": "Table",
-   "label": "Branch to Warehouse",
-   "options": "BP Legacy Warehouse Map"
-  },
-  {
-   "description": "Normalnya metode bayar sistem lama dipetakan otomatis ke akun ERP yang nomornya sama dengan akun GL lama. Isi di sini hanya untuk pengecualian: metode yang akunnya belum ada di ERP atau harus diarahkan ke akun lain.",
-   "fieldname": "legacy_payment_method_map",
-   "fieldtype": "Table",
-   "label": "Payment Method to Account",
-   "options": "BP Legacy Payment Method Map"
-  },
-  {
-   "default": "10",
-   "description": "Selisih maksimum yang diizinkan (dalam mata uang perusahaan) antara total invoice sistem lama dan Grand Total di ERP. Selisih yang lebih besar akan ditolak.",
-   "fieldname": "legacy_amount_tolerance",
-   "fieldtype": "Currency",
-   "label": "Amount Tolerance"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-10-19 00:00:00",
+ "modified": "2026-10-23 00:00:00",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "BP Settings",
