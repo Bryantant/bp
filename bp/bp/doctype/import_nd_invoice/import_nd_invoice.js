@@ -1,24 +1,13 @@
 frappe.ui.form.on("Import ND Invoice", {
 	refresh(frm) {
-		frm.set_df_property("import_file_button", "hidden", frm.doc.docstatus !== 0);
+		frm.set_df_property("paste_button", "hidden", frm.doc.docstatus !== 0);
 	},
 
-	// The file sits in the Attach field (kept with the batch); this button reads
-	// it into the grid, as often as needed.
-	import_file_button(frm) {
-		if (!frm.doc.excel_file) {
-			frappe.msgprint(__("Attach an Excel file in File Excel ND first."));
-			return;
-		}
-		bp.import_sales_invoice.load_rows(frm, frm.doc.excel_file);
-	},
-
-	download_template_button() {
-		window.open(
-			frappe.urllib.get_full_url(
-				"/api/method/bp.bp.doctype.import_nd_invoice.import_nd_invoice.download_template"
-			)
-		);
+	// Rows come from Excel by copy-paste (Bry 2026-10-23): read the clipboard
+	// directly; when the browser refuses (no permission, older Safari/Firefox),
+	// open a box where the user pastes with Ctrl/Cmd+V.
+	paste_button(frm) {
+		bp.import_sales_invoice.read_clipboard(frm);
 	},
 
 	// Changing the header default overwrites it on every existing row, not just
@@ -44,7 +33,9 @@ frappe.provide("bp.import_sales_invoice");
 bp.import_sales_invoice = {
 	autofill_rows: function (frm, fieldname, value) {
 		if (!value || !frm.doc.rows || !frm.doc.rows.length) return;
-		frm.doc.rows.forEach((row) => frappe.model.set_value(row.doctype, row.name, fieldname, value));
+		frm.doc.rows.forEach((row) =>
+			frappe.model.set_value(row.doctype, row.name, fieldname, value)
+		);
 	},
 
 	apply_defaults_to_row: function (frm, row) {
@@ -53,14 +44,55 @@ bp.import_sales_invoice = {
 		}
 	},
 
-	// Parse the file server-side and add its rows to the grid, skipping ND
-	// numbers already there.
-	load_rows: function (frm, file_url) {
+	read_clipboard: function (frm) {
+		const fallback = () => bp.import_sales_invoice.paste_dialog(frm);
+		if (!navigator.clipboard || !navigator.clipboard.readText) return fallback();
+		navigator.clipboard
+			.readText()
+			.then(
+				(text) =>
+					text && text.trim()
+						? bp.import_sales_invoice.load_rows(frm, text)
+						: fallback(),
+				fallback
+			);
+	},
+
+	paste_dialog: function (frm) {
+		const d = new frappe.ui.Dialog({
+			title: __("Paste dari Excel"),
+			fields: [
+				{
+					fieldname: "pasted",
+					fieldtype: "Long Text",
+					label: __("Data"),
+					description: __(
+						"Copy rows in Excel including the header row (Invoice Number, Invoice Date, CustomerID, Net Amount), then paste here with Ctrl+V or Cmd+V."
+					),
+				},
+			],
+			primary_action_label: __("Add to Table"),
+			primary_action(values) {
+				if (!values.pasted || !values.pasted.trim()) return;
+				d.hide();
+				bp.import_sales_invoice.load_rows(frm, values.pasted);
+			},
+		});
+		d.show();
+		setTimeout(
+			() => d.fields_dict.pasted.$input && d.fields_dict.pasted.$input.trigger("focus"),
+			200
+		);
+	},
+
+	// Parse the pasted text server-side and add its rows to the grid, skipping
+	// ND numbers already there.
+	load_rows: function (frm, text) {
 		frappe.call({
-			method: "bp.bp.doctype.import_nd_invoice.import_nd_invoice.parse_excel",
-			args: { file_url: file_url },
+			method: "bp.bp.doctype.import_nd_invoice.import_nd_invoice.parse_pasted",
+			args: { text: text },
 			freeze: true,
-			freeze_message: __("Parsing file..."),
+			freeze_message: __("Reading rows..."),
 			callback: function (r) {
 				if (r.exc) return;
 				var msg = r.message || {};
@@ -69,7 +101,8 @@ bp.import_sales_invoice = {
 				// mandatory Table field -- otherwise it sits mixed in with real
 				// data and blocks Save/Submit with "ND Invoice No is mandatory".
 				frm.doc.rows = (frm.doc.rows || []).filter(
-					(row) => row.nd_invoice_no || row.cust_code_nd || row.invoice_date || row.amount
+					(row) =>
+						row.nd_invoice_no || row.cust_code_nd || row.invoice_date || row.amount
 				);
 
 				var existing = new Set(frm.doc.rows.map((row) => row.nd_invoice_no));
@@ -90,6 +123,13 @@ bp.import_sales_invoice = {
 					]),
 					indicator: added ? "green" : "orange",
 				});
+				if ((msg.errors || []).length) {
+					frappe.msgprint({
+						title: __("Rows not added"),
+						indicator: "orange",
+						message: msg.errors.map((e) => frappe.utils.escape_html(e)).join("<br>"),
+					});
+				}
 			},
 		});
 	},

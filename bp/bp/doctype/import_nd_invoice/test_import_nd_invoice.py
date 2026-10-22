@@ -1,10 +1,17 @@
 # Copyright (c) 2026, Hicom System and contributors
 # For license information, please see license.txt
 
+from datetime import date
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from bp.bp.doctype.import_nd_invoice.import_nd_invoice import ImportNDInvoice
+from bp.bp.doctype.import_nd_invoice.import_nd_invoice import (
+	ImportNDInvoice,
+	parse_amount,
+	parse_dates,
+	parse_pasted,
+)
 
 
 class TestImportNDInvoice(FrappeTestCase):
@@ -13,8 +20,18 @@ class TestImportNDInvoice(FrappeTestCase):
 			{
 				"doctype": "Import ND Invoice",
 				"rows": [
-					{"nd_invoice_no": "DUP-1", "cust_code_nd": "X", "invoice_date": "2026-01-01", "amount": 1},
-					{"nd_invoice_no": "DUP-1", "cust_code_nd": "Y", "invoice_date": "2026-01-01", "amount": 2},
+					{
+						"nd_invoice_no": "DUP-1",
+						"cust_code_nd": "X",
+						"invoice_date": "2026-01-01",
+						"amount": 1,
+					},
+					{
+						"nd_invoice_no": "DUP-1",
+						"cust_code_nd": "Y",
+						"invoice_date": "2026-01-01",
+						"amount": 2,
+					},
 				],
 			}
 		)
@@ -61,13 +78,20 @@ class TestImportNDInvoice(FrappeTestCase):
 				"custom_cn_initial": "Z",
 			}
 		).insert(ignore_permissions=True)
-		self.addCleanup(lambda: frappe.delete_doc("Customer", customer.name, force=True, ignore_permissions=True))
+		self.addCleanup(
+			lambda: frappe.delete_doc("Customer", customer.name, force=True, ignore_permissions=True)
+		)
 
 		doc = frappe.get_doc(
 			{
 				"doctype": "Import ND Invoice",
 				"rows": [
-					{"nd_invoice_no": "A-1", "cust_code_nd": nd_code, "invoice_date": "2026-01-01", "amount": 1}
+					{
+						"nd_invoice_no": "A-1",
+						"cust_code_nd": nd_code,
+						"invoice_date": "2026-01-01",
+						"amount": 1,
+					}
 				],
 			}
 		)
@@ -136,9 +160,7 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": si.name}))
 
 	def test_submit_blocked_when_nd_number_is_taken_as_invoice_name(self):
-		taken = frappe.db.get_value(
-			"Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name"
-		)
+		taken = frappe.db.get_value("Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name")
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
@@ -159,3 +181,79 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		)
 		with self.assertRaisesRegex(frappe.ValidationError, "cannot be used as the name"):
 			ImportNDInvoice.before_submit(doc)
+
+
+class TestPasteFromExcel(FrappeTestCase):
+	"""Rows pasted from Excel carry the PC's display format (Bry 2026-10-23)."""
+
+	def setUp(self):
+		frappe.set_user("Administrator")
+
+	def test_amount_in_both_separator_styles(self):
+		self.assertEqual(parse_amount("1,016,195.70"), 1016195.70)
+		self.assertEqual(parse_amount("1.016.195,70"), 1016195.70)
+		self.assertEqual(parse_amount("204,281.00"), 204281)
+		self.assertEqual(parse_amount("204.281"), 204281)
+		self.assertEqual(parse_amount("1016195,7"), 1016195.7)
+		self.assertEqual(parse_amount("Rp 5.000"), 5000)
+		self.assertEqual(parse_amount("(1.500)"), -1500)
+		self.assertEqual(parse_amount(3752250), 3752250)
+		self.assertIsNone(parse_amount(""))
+
+	def test_day_first_when_first_part_above_twelve(self):
+		dates, error = parse_dates([("I261000444", "17/10/2026"), ("I261000445", "05/10/2026")])
+		self.assertIsNone(error)
+		self.assertEqual(dates, [date(2026, 10, 17), date(2026, 10, 5)])
+
+	def test_month_first_when_second_part_above_twelve(self):
+		dates, _ = parse_dates([("I261000444", "10-17-26"), ("I261000445", "10-05-26")])
+		self.assertEqual(dates, [date(2026, 10, 17), date(2026, 10, 5)])
+
+	def test_nd_number_month_settles_ambiguous_dates(self):
+		# 05/10/2026 alone could be 5 Oct or 10 May; the ND number says October
+		dates, _ = parse_dates([("I261000444", "05/10/2026")])
+		self.assertEqual(dates, [date(2026, 10, 5)])
+		dates, _ = parse_dates([("I261000444", "10/05/2026")])
+		self.assertEqual(dates, [date(2026, 10, 5)])
+
+	def test_mixed_order_is_refused(self):
+		dates, error = parse_dates([("A", "17/10/2026"), ("B", "10/17/2026")])
+		self.assertTrue(error)
+
+	def test_iso_and_month_name_dates(self):
+		cells = [("A", "2026-10-17"), ("B", "17-Okt-26"), ("C", "17 Oct 2026"), ("D", "hari ini")]
+		dates, _ = parse_dates(cells)
+		self.assertEqual(dates, [date(2026, 10, 17), date(2026, 10, 17), date(2026, 10, 17), None])
+
+	def test_paste_reads_header_in_any_order_and_skips_blank_lines(self):
+		text = (
+			"Invoice Number\tInvoice Date\tCustomerID\tNet Amount\tExtra\r\n"
+			"I261000444\t17/10/2026\t17CDFN1003\t1.016.195,70\tx\r\n"
+			"\t\t\t\t\r\n"
+			"I261000435\t17/10/2026\t17CDDR1004\t204.281,00\tx\r\n"
+		)
+		result = parse_pasted(text)
+		self.assertEqual(result["errors"], [])
+		self.assertEqual(
+			[(r["nd_invoice_no"], r["cust_code_nd"], r["invoice_date"], r["amount"]) for r in result["rows"]],
+			[
+				("I261000444", "17CDFN1003", "2026-10-17", 1016195.70),
+				("I261000435", "17CDDR1004", "2026-10-17", 204281),
+			],
+		)
+
+	def test_paste_without_header_is_refused(self):
+		self.assertRaises(frappe.ValidationError, parse_pasted, "I261000444\t17/10/2026\t17CDFN1003\t1000")
+
+	def test_paste_reports_unreadable_cells(self):
+		text = (
+			"Invoice Number\tCustomerID\tInvoice Date\tNet Amount\n"
+			"I1\tC1\tbesok\t100\n"
+			"I2\tC2\t2026-10-17\tabc"
+		)
+		result = parse_pasted(text)
+		self.assertEqual(result["rows"], [])
+		self.assertEqual(len(result["errors"]), 2)
+		# line numbers count the blank lines too, so they match the copied rows
+		result = parse_pasted("Invoice Number\tCustomerID\tInvoice Date\tNet Amount\n\nI1\tC1\tbesok\t100")
+		self.assertIn("Line 3", result["errors"][0])

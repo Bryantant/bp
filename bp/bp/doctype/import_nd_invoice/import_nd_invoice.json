@@ -11,10 +11,9 @@
   "column_break_ovjo",
   "default_salesman",
   "section_break_ifhm",
+  "paste_button",
   "excel_file",
   "column_break_file",
-  "import_file_button",
-  "download_template_button",
   "section_break_rows",
   "rows",
   "amended_from"
@@ -43,31 +42,28 @@
    "options": "Sales Person"
   },
   {
-   "description": "Lampirkan file export ND (Excel), lalu klik Import ke Tabel. File tetap tersimpan di batch ini.",
+   "description": "Di Excel, blok data termasuk baris judul kolom (Invoice Number, Invoice Date, CustomerID, Net Amount), copy, lalu klik tombol ini.",
+   "fieldname": "paste_button",
+   "fieldtype": "Button",
+   "label": "Paste dari Excel"
+  },
+  {
+   "description": "Tidak dipakai lagi sejak 23 Okt 2026 (diganti Paste dari Excel). Disimpan untuk batch lama.",
    "fieldname": "excel_file",
    "fieldtype": "Attach",
-   "label": "File Excel ND"
+   "label": "File Excel ND",
+   "hidden": 1
   },
   {
    "fieldname": "column_break_file",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "import_file_button",
-   "fieldtype": "Button",
-   "label": "Import ke Tabel"
-  },
-  {
-   "fieldname": "download_template_button",
-   "fieldtype": "Button",
-   "label": "Download Template"
-  },
-  {
    "fieldname": "section_break_rows",
    "fieldtype": "Section Break"
   },
   {
-   "description": "Attach an ND invoice export (Excel) in File Excel ND and click Import ke Tabel, or add rows manually. Set Salesman and Warehouse on each row before submitting.",
+   "description": "Paste rows from Excel with the Paste dari Excel button, or add rows manually. Set Salesman on each row if needed before submitting.",
    "fieldname": "rows",
    "fieldtype": "Table",
    "options": "Import ND Invoice Item",
@@ -93,7 +89,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-10-19 14:06:21.305164",
+ "modified": "2026-10-23 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Import ND Invoice",

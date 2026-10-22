@@ -1,4 +1,4 @@
-"""Import ND Invoice: Excel upload -> editable grid -> Submit creates Sales Invoices.
+"""Import ND Invoice: paste from Excel -> editable grid -> Submit creates Sales Invoices.
 
 Rebuilds the legacy Access "Import Sales Invoice" tool that imports invoices
 from the ND System -- a separate, currently-active system this integration
@@ -17,14 +17,23 @@ tool (Bry 2026-10-17). Warehouse is not used either: the placeholder item is a
 non-stock item, so the invoices move no stock (Bry 2026-10-19). The fields stay,
 hidden, so batches made before that still open.
 
-The ND System's Excel export (InvND) uses column headers that don't match
-Frappe field-label conventions, so COLUMN_MAP is hardcoded rather than left
-to generic column matching. Header matching is case-insensitive since a real
-export was found using "CustomerID" where an earlier assumption expected
-"CustomerId". Only 4 columns are ever read from the file (Invoice Number,
-Invoice Date, CustomerID, Net Amount) -- Cust Code and Customer Name are NOT
-Excel columns, they're derived from the matched Customer record in
-resolve_customers(). Salesman is not in the Excel file at
+Rows come in by copy-paste (Bry 2026-10-23, replaces the Excel file upload):
+the user selects the ND export in Excel *with its header row*, copies, and
+clicks "Paste dari Excel"; the browser sends the clipboard text (tab-separated)
+to parse_pasted(). The ND System's export (InvND) uses column headers that
+don't match Frappe field-label conventions, so COLUMN_MAP is hardcoded rather
+than left to generic column matching, matched case-insensitively ("CustomerID"
+vs "CustomerId"), in any column order, extra columns ignored. Only 4 columns are
+read (Invoice Number, Invoice Date, CustomerID, Net Amount) -- Cust Code and
+Customer Name are derived from the matched Customer record in
+resolve_customers().
+
+Copied text carries what Excel *displays*, which follows the PC's locale: the
+ND export's date cells use Excel's built-in short date, so the same file pastes
+as 17/10/2026 on an Indonesian PC and 10/17/2026 on a US one, and amounts as
+1.016.195,70 or 1,016,195.70. parse_dates() settles day/month order for the
+whole paste (a part above 12 decides; otherwise the month in the ND invoice
+number, I26*10*00444) and parse_amount() reads either separator style. Salesman is not in the Excel file at
 all -- it's filled in manually in the grid, over as many saves as needed,
 before Submit. Unlike SOBatch.validate(), this validate() never blocks a Draft save
 on unresolved/incomplete rows -- it only resolves what it can. All hard
@@ -39,13 +48,15 @@ no way to edit the rows short of Cancel + Amend. (Confirmed by hitting this
 exact bug while testing this controller directly.)
 """
 
+import re
+from datetime import date, datetime
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils.xlsxutils import make_xlsx, read_xlsx_file_from_attached_file
+from frappe.utils import flt
 
-# Headers as the ND export writes them, in its column order. download_template
-# writes exactly these; COLUMN_MAP (matched case-insensitively) is built from them.
+# Headers as the ND export writes them; COLUMN_MAP (matched case-insensitively) is built from them.
 TEMPLATE_COLUMNS = [
 	("Invoice Number", "nd_invoice_no"),
 	("CustomerID", "cust_code_nd"),
@@ -59,7 +70,7 @@ def _resolve_customer_map(cust_code_nd_values):
 	"""Batch-resolve {cust_code_nd: (customer_name_as_id, customer_display_name)}.
 
 	One query for the whole set instead of one per row -- used both by
-	resolve_customers() (on save) and parse_excel() (immediately on import,
+	resolve_customers() (on save) and parse_pasted() (immediately on paste,
 	so the grid shows Resolved Customer/Customer Name right away instead of
 	waiting for the first Save).
 	"""
@@ -98,7 +109,7 @@ class ImportNDInvoice(Document):
 		Never throws -- an unresolved row just keeps resolved_customer blank;
 		create_sales_invoices() is where a missing match actually blocks anything.
 		Re-runs on every save so edits to Cust Code ND after import stay in sync.
-		Rows freshly added via parse_excel() already arrive pre-resolved (see
+		Rows freshly added via parse_pasted() already arrive pre-resolved (see
 		below) -- this is what re-resolves manually added/edited rows.
 		"""
 		customer_map = _resolve_customer_map(row.cust_code_nd for row in self.rows)
@@ -196,46 +207,176 @@ class ImportNDInvoice(Document):
 				frappe.delete_doc("Sales Invoice", si.name, force=True, ignore_permissions=True)
 
 
+MONTHS = {
+	"jan": 1, "feb": 2, "peb": 2, "mar": 3, "apr": 4, "may": 5, "mei": 5, "jun": 6, "jul": 7,
+	"aug": 8, "agu": 8, "agt": 8, "sep": 9, "oct": 10, "okt": 10, "nov": 11, "nop": 11, "dec": 12, "des": 12,
+}  # fmt: skip
+ISO_DATE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})")
+NUMERIC_DATE = re.compile(r"^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})(?:\s|$)")
+NAMED_DATE = re.compile(r"^(\d{1,2})[-/ .]([A-Za-z]{3,})[-/ .,]+(\d{2}|\d{4})(?:\s|$)")
+ND_NUMBER_MONTH = re.compile(r"^[A-Za-z]\d{2}(\d{2})")
+
+
+def _year(text):
+	year = int(text)
+	return year + 2000 if year < 100 else year
+
+
+def parse_amount(value):
+	"""Number from a pasted cell, either separator style: 1,016,195.70 / 1.016.195,70 / 204281 / Rp 5.000."""
+	if isinstance(value, int | float):
+		return flt(value)
+	text = str(value or "").strip()
+	negative = text.startswith("-") or (text.startswith("(") and text.endswith(")"))
+	text = re.sub(r"[^\d,.]", "", text)
+	if not text:
+		return None
+	if "," in text and "." in text:
+		decimal = "," if text.rfind(",") > text.rfind(".") else "."
+		text = text.replace("." if decimal == "," else ",", "").replace(decimal, ".")
+	elif "," in text or "." in text:
+		sep = "," if "," in text else "."
+		parts = text.split(sep)
+		# 1.234.567 or 1,234 (three digits after) are thousands; 1016195,7 is a decimal
+		if len(parts) > 2 or len(parts[-1]) == 3:
+			text = text.replace(sep, "")
+		else:
+			text = text.replace(sep, ".")
+	number = flt(text)
+	return -number if negative else number
+
+
+def parse_dates(cells):
+	"""Dates for a list of (nd_invoice_no, cell) pairs, one day/month order for the whole paste.
+
+	Returns (dates, error). dates[i] is a date or None when the cell is unreadable.
+	"""
+	parsed, ambiguous = [], []
+	for nd_no, cell in cells:
+		if isinstance(cell, datetime):
+			parsed.append(("date", cell.date()))
+			continue
+		if isinstance(cell, date):
+			parsed.append(("date", cell))
+			continue
+		text = str(cell or "").strip()
+		if m := ISO_DATE.match(text):
+			parsed.append(("ymd", (int(m[1]), int(m[2]), int(m[3]))))
+		elif m := NUMERIC_DATE.match(text):
+			parsed.append(("ab", (int(m[1]), int(m[2]), _year(m[3]))))
+			ambiguous.append((nd_no, int(m[1]), int(m[2])))
+		elif (m := NAMED_DATE.match(text)) and m[2][:3].lower() in MONTHS:
+			parsed.append(("ymd", (_year(m[3]), MONTHS[m[2][:3].lower()], int(m[1]))))
+		else:
+			parsed.append((None, None))
+
+	day_first = True
+	if ambiguous:
+		first_is_day = any(a > 12 for _, a, _ in ambiguous)
+		second_is_day = any(b > 12 for _, _, b in ambiguous)
+		if first_is_day and second_is_day:
+			return [None] * len(cells), _(
+				"Invoice Date mixes day-month and month-day order; check the copied cells."
+			)
+		if second_is_day:
+			day_first = False
+		elif not first_is_day:
+			# every part is 12 or less: let the month in the ND number (I26 10 00444) decide
+			votes_day = votes_month = 0
+			for nd_no, a, b in ambiguous:
+				if m := ND_NUMBER_MONTH.match(str(nd_no or "")):
+					month = int(m[1])
+					votes_day += b == month
+					votes_month += a == month
+			day_first = votes_day >= votes_month
+
+	dates = []
+	for kind, value in parsed:
+		try:
+			if kind == "date":
+				dates.append(value)
+			elif kind == "ymd":
+				dates.append(date(*value))
+			elif kind == "ab":
+				a, b, year = value
+				dates.append(date(year, b, a) if day_first else date(year, a, b))
+			else:
+				dates.append(None)
+		except ValueError:
+			dates.append(None)
+	return dates, None
+
+
 @frappe.whitelist()
-def parse_excel(file_url):
-	"""Parse an uploaded ND System invoice export into plain row dicts for the client's grid.
+def parse_pasted(text):
+	"""Parse ND rows copied from Excel (tab-separated, header row first) into plain row dicts.
 
 	Does not insert or save anything -- the client adds returned rows to the
 	in-memory child table, so nothing persists until the user Saves/Submits.
 	Rows come back with resolved_customer/cust_code/customer_name already
-	filled in where a match exists, so the grid shows them immediately on
-	import instead of only after the first Save.
+	filled in where a match exists, so the grid shows them immediately.
 	"""
 	frappe.only_for(["System Manager", "Accounts Manager"])
 
-	rows = read_xlsx_file_from_attached_file(file_url=file_url) or []
-	if not rows:
-		frappe.throw(_("The uploaded file has no rows."))
+	text = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+	# keep each line's own number (blank lines included) so errors match the rows the user copied
+	table = [(no, line.split("\t")) for no, line in enumerate(text.split("\n"), start=1) if line.strip()]
+	if not table:
+		frappe.throw(_("The clipboard is empty. Copy the rows in Excel first, including the header row."))
 
-	header = rows[0]
 	column_index = {}
-	for idx, cell in enumerate(header):
-		key = str(cell).strip().lower() if cell is not None else ""
-		fieldname = COLUMN_MAP.get(key)
+	for idx, cell in enumerate(table[0][1]):
+		fieldname = COLUMN_MAP.get(cell.strip().lower())
 		if fieldname:
 			column_index[fieldname] = idx
 
-	missing = [h for h, f in COLUMN_MAP.items() if f not in column_index]
+	missing = [header for header, fieldname in TEMPLATE_COLUMNS if fieldname not in column_index]
 	if missing:
-		frappe.throw(_("The uploaded file is missing expected column(s): {0}").format(", ".join(missing)))
+		frappe.throw(
+			_("The copied rows have no header row with: {0}. Copy again including the header row.").format(
+				", ".join(missing)
+			)
+		)
 
-	parsed, errors = [], []
-	for data_row in rows[1:]:
-		if not any(data_row):
+	raw, errors = [], []
+	for line_no, cells in table[1:]:
+		values = {f: (cells[i].strip() if i < len(cells) else "") for f, i in column_index.items()}
+		if not any(values.values()):
 			continue
+		if not values["nd_invoice_no"]:
+			errors.append(_("Line {0}: missing Invoice Number").format(line_no))
+			continue
+		raw.append((line_no, values))
 
-		values = {fieldname: data_row[idx] for fieldname, idx in column_index.items()}
-		nd_invoice_no = values.get("nd_invoice_no")
-		if not nd_invoice_no:
-			errors.append({"row": data_row, "error": "Missing Invoice Number"})
+	dates, date_error = parse_dates([(v["nd_invoice_no"], v["invoice_date"]) for _, v in raw])
+	if date_error:
+		frappe.throw(date_error)
+
+	parsed = []
+	for (line_no, values), invoice_date in zip(raw, dates, strict=True):
+		amount = parse_amount(values["amount"])
+		if not invoice_date:
+			errors.append(
+				_("Line {0} ({1}): Invoice Date {2} not recognised").format(
+					line_no, values["nd_invoice_no"], values["invoice_date"]
+				)
+			)
 			continue
-		values["nd_invoice_no"] = str(nd_invoice_no).strip()
-		parsed.append(values)
+		if amount is None:
+			errors.append(
+				_("Line {0} ({1}): Net Amount {2} not recognised").format(
+					line_no, values["nd_invoice_no"], values["amount"]
+				)
+			)
+			continue
+		parsed.append(
+			{
+				"nd_invoice_no": values["nd_invoice_no"],
+				"cust_code_nd": values["cust_code_nd"],
+				"invoice_date": invoice_date.isoformat(),
+				"amount": amount,
+			}
+		)
 
 	customer_map = _resolve_customer_map(row["cust_code_nd"] for row in parsed)
 	for row in parsed:
@@ -245,14 +386,3 @@ def parse_excel(file_url):
 			row["customer_name"] = match[1]
 
 	return {"rows": parsed, "errors": errors}
-
-
-@frappe.whitelist()
-def download_template():
-	"""Empty .xlsx with the ND export headers, for building an import file by hand."""
-	frappe.only_for(["System Manager", "Accounts Manager"])
-
-	xlsx = make_xlsx([[header for header, _fieldname in TEMPLATE_COLUMNS]], "Import ND Invoice")
-	frappe.response["filename"] = "import_nd_invoice_template.xlsx"
-	frappe.response["filecontent"] = xlsx.getvalue()
-	frappe.response["type"] = "binary"
