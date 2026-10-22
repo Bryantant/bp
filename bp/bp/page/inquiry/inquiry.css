@@ -28,6 +28,13 @@
 	--inquiry-selected-bg: var(--blue-100);
 }
 
+/* The datatable's sticky row-number column (z-index 4) would cover the
+   Customer/Item dropdowns; keep the filter row above the table. */
+#page-inquiry .page-form {
+	position: relative;
+	z-index: 10;
+}
+
 /* Filters on two rows: item filters first, then the tab's own filters
    (customer/supplier, dates). inquiry.js inserts this break between them. */
 #page-inquiry .page-form .inquiry-filter-break {
