@@ -59,3 +59,73 @@
 		},
 	});
 })();
+
+// Role permission dialog (User form, click a role name): the server (bp.overrides.user.get_perm_info) sorts the
+// rows (most rights first) and has three views, chosen with the buttons above the table: without Select-only
+// rows, the standard list, and only the rows that can write (default). Frappe builds the dialog from a fixed
+// call, so the view is passed by wrapping frappe.xcall for the length of that one call.
+(function permissionViewsInRoleDialog() {
+	if (!frappe.RoleEditor || frappe.RoleEditor.prototype.__bp_views_patched) return;
+	frappe.RoleEditor.prototype.__bp_views_patched = true;
+	var VIEWS = [
+		[
+			"no_select",
+			__("Without Select-only"),
+			__("DocTypes where the role only has Select are hidden"),
+		],
+		[
+			"standard",
+			__("Standard"),
+			__("Standard list, including DocTypes where the role only has Select"),
+		],
+		[
+			"write",
+			__("Write / Create"),
+			__("Only DocTypes the role can change (Write, Create, Delete, Submit, Cancel, Amend)"),
+		],
+	];
+	var original = frappe.RoleEditor.prototype.show_permissions;
+	frappe.RoleEditor.prototype.show_permissions = function (role) {
+		var editor = this;
+		var view = editor.__bp_view || "write";
+		var xcall = frappe.xcall;
+		frappe.xcall = function (method, args) {
+			if (typeof method === "string" && method.endsWith("user.get_perm_info")) {
+				args = Object.assign({}, args, { view: view });
+			}
+			return xcall.apply(
+				frappe,
+				[method, args].concat(Array.prototype.slice.call(arguments, 2))
+			);
+		};
+		var done;
+		try {
+			done = original.call(this, role);
+		} finally {
+			frappe.xcall = xcall;
+		}
+		return Promise.resolve(done).then(function () {
+			var $body = $(editor.perm_dialog.body);
+			$body.find(".bp-perm-views").remove();
+			var $bar = $(
+				'<div class="bp-perm-views" style="display: flex; align-items: center; gap: var(--margin-md); margin-bottom: var(--margin-md)"></div>'
+			);
+			var $group = $('<div class="btn-group"></div>');
+			VIEWS.forEach(function (v) {
+				var $btn = $('<button type="button" class="btn btn-xs"></button>')
+					.addClass(v[0] === view ? "btn-primary" : "btn-default")
+					.text(v[1]);
+				$btn.on("click", function () {
+					editor.__bp_view = v[0];
+					editor.show_permissions(role);
+				});
+				$group.append($btn);
+			});
+			var hint = VIEWS.filter(function (v) {
+				return v[0] === view;
+			})[0][2];
+			$bar.append($group).append($('<span class="text-muted small"></span>').text(hint));
+			$body.prepend($bar);
+		});
+	};
+})();

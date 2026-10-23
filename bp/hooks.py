@@ -276,6 +276,8 @@ naming_series_variables = {
 override_whitelisted_methods = {
 	"erpnext.stock.get_item_details.get_item_details": "bp.utils.last_purchase_price.get_item_details",
 	"erpnext.stock.get_item_details.apply_price_list": "bp.utils.last_purchase_price.apply_price_list",
+	# Role permission dialog on the User form: leave out DocTypes where the role only has Select
+	"frappe.core.doctype.user.user.get_perm_info": "bp.overrides.user.get_perm_info",
 }
 #
 # each overriding function accepts a `data` argument;
