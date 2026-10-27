@@ -230,6 +230,7 @@ trial-and-error:
   long for its column ends in an ellipsis. Sales Invoice DESCRIPTION is 41.5% wide (was 35%).
 - The orange "user date time" stamp under Admin copies the legacy print ("kris 7/21/2026 12:12:42 PM"); Bry
   2026-10-17: keep it as is.
+- **Print stamp ("user date time" under Admin) is black, not orange (Bry 2026-10-27):** orange `#b45309` printed too faint on the dot-matrix paper. Stays 8 px.
 - Columns follow the legacy Access report PrtInvForm: PRICE = list price before discount (`price_list_rate`), DISC % =
   cascaded percentages joined with " + " (blank if none), DISCOUNT = nominal discount amounts (blank if 0), NET AMOUNT =
   line amount. Description: see "One row per line". Salesman prints the
@@ -237,8 +238,13 @@ trial-and-error:
 - Footer note: `doc.terms`, else the company's `default_selling_terms` ("Informasi Rekening" = legacy DONotesx text).
 - **Paper (Bry 2026-10-17): continuous form 9.5 x 5.5 in on dot-matrix printers, Sales Invoice document only**
   (both formats here; PO, Penerimaan Barang, Mutasi Barang, Payment Note, Journal Voucher stay A4). `@page` is
-  241.3 x 139.7 mm, margins 5/7/6/7 mm; `.print-format { page-width; page-height; margin-* }` gives Get PDF the same
-  size. Use mm: Frappe `convert_uom` raises KeyError 0 for `in` values (v16.50), which breaks Get PDF.
+  241.3 x 139.7 mm, margins top 5, right 40, bottom 6, left 17 mm; `.print-format { page-width; page-height; margin-* }`
+  gives Get PDF the same size. **Content block is 184 mm, not 227 mm (Bry 2026-10-27):** the Epson LQ-310 prints only
+  8 in (203 mm) across the form, and where that window starts moves a few mm with how the form sits on the tractors.
+  Observed: window ends at 204 mm of the old content (right side cut at 7 mm margin), next print the window started
+  7 mm in (left side cut). 17 mm left / 40 mm right (184 mm) keeps the block inside the part common to three prints (page x 14-204 mm). Sales Invoice columns (no 4.5,
+  desc 31, qty 5, uom 6, price 13.5, % 12.5, discount 12, net 15.5) are sized for it; check a worst-case row after
+  any change. Confirmed on paper (LQ-310, prod, INV-B26100006, 2026-10-27): NET AMOUNT, totals and the signature company name all print. Use mm: Frappe `convert_uom` raises KeyError 0 for `in` values (v16.50), which breaks Get PDF.
 - **One sheet per page, drawn by the template.** Chrome does not repeat a `<thead>` this tall (our header is ~1/3
   of the page), so the legacy "header on every page" is done in Jinja: `bp_paginate(doc.items, one_line,
   page_px, last_page_px)` (`bp/utils/print_layout.py`, Jinja method) returns the lines per sheet; each
