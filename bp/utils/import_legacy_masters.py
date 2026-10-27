@@ -857,14 +857,14 @@ def _reseed_naming_counters(ctx):
 	"""Raise BP Naming Counter to the new maximum so the next manually created
 	Customer/Supplier does not collide with an imported code.
 
-	Only ever called on a real run: the patch ends with frappe.db.commit(),
+	Only ever called on a real run: seed_naming_counters ends with frappe.db.commit(),
 	which would make a "dry run" write everything created before it.
 	"""
-	from bp.patches.v1_0.seed_bp_naming_counters import execute as seed_counters
+	from bp.utils.naming_counters import seed_naming_counters
 
 	if ctx.dry_run:
-		raise RuntimeError("seed_bp_naming_counters commits; never call it during a dry run")
-	seed_counters()
+		raise RuntimeError("seed_naming_counters commits; never call it during a dry run")
+	seed_naming_counters()
 
 
 PART_RUNNERS = {

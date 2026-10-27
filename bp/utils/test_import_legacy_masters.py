@@ -189,7 +189,7 @@ class IntegrationTestImportLegacyMasters(IntegrationTestCase):
 	# -- create-only guarantee ------------------------------------------------
 
 	def test_dry_run_never_calls_the_committing_patch(self):
-		"""seed_bp_naming_counters ends in frappe.db.commit(); calling it from a
+		"""seed_naming_counters ends in frappe.db.commit(); calling it from a
 		dry run would make the whole "nothing is written" promise a lie."""
 		from bp.utils.import_legacy_masters import _Context, _reseed_naming_counters
 

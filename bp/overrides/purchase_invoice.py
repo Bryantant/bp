@@ -15,19 +15,16 @@ naming-series engine (frappe.model.naming.parse_naming_series) can resolve the
 name, e.g. PA26090001, PGS26090001, PRA26090001.
 
 Invoices named under the older Cash/Credit series (PF/PC) keep their names;
-the Invoice Type field that drove it was removed
-(bp.patches.v1_0.remove_purchase_invoice_invoice_type_field).
+the Invoice Type field that drove it was removed.
 """
 
 import frappe
 
-from bp.patches.v1_0.apply_document_numbering_oct15 import (
+from bp.overrides.series import (
 	PURCHASE_DEBIT_NOTE_SERIES,
 	PURCHASE_INVOICE_SERIES,
-	PURCHASE_RETURN_SERIES_OCT15,
-)
-from bp.patches.v1_0.name_invoices_and_returns_by_warehouse import (
 	PURCHASE_RETURN_SERIES,
+	PURCHASE_RETURN_SERIES_OCT15,
 	PURCHASE_SERIES,
 )
 

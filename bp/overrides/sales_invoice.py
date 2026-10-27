@@ -3,15 +3,15 @@ from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
 from frappe import _
 from frappe.utils import cint, now_datetime
 
-from bp.patches.v1_0.allow_non_stock_sales_invoices import WAREHOUSE_SERIES
-from bp.patches.v1_0.apply_document_numbering_oct15 import (
+from bp.overrides.series import (
 	SALES_CREDIT_NOTE_SERIES,
 	SALES_DEBIT_NOTE_SERIES,
 	SALES_INVOICE_SERIES_OCT15,
 	SALES_NON_STOCK_SERIES_OCT15,
+	SALES_RETURN_SERIES,
 	SALES_RETURN_SERIES_OCT15,
+	WAREHOUSE_SERIES,
 )
-from bp.patches.v1_0.name_invoices_and_returns_by_warehouse import SALES_RETURN_SERIES
 from bp.utils.cascading_discount import recalculate_cascading_discount as _recalculate_cascading_discount
 
 # ---------------------------------------------------------------------------
@@ -105,8 +105,7 @@ def before_naming(doc, method=None):
 	(get_warehouse_name_code below), which a value-only invoice -- an AR debit
 	note charging a principal for a promo claim, say -- does not have. Those
 	get SALES_NON_STOCK_SERIES_OCT15 (ND-26100001, meeting 2026-10-15; earlier
-	ones keep NDB-26-0001) instead; see
-	bp.patches.v1_0.allow_non_stock_sales_invoices.
+	ones keep NDB-26-0001) instead.
 
 	Runs on insert only, before the name is generated, and only matters when
 	the user has not picked a series by hand.
@@ -151,22 +150,14 @@ def before_naming(doc, method=None):
 
 
 def validate(doc, method=None):
+	# Sales Person is optional on every invoice (Bry 2026-10-27).
 	if not doc.bp_sales_person and doc.is_opening == "Yes":
-		# An opening balance carries no salesperson of its own; use the
-		# customer's, and accept none rather than blocking the import.
+		# An opening balance takes the customer's salesperson when it has one.
 		doc.bp_sales_person = frappe.db.get_value("Customer", doc.customer, "bp_sales_person")
-		if not doc.bp_sales_person:
-			return
-
-	if not doc.bp_sales_person and doc.get("custom_nd_invoice_no"):
-		# ND System invoices (Import ND Invoice) carry no salesperson, as in the
-		# old Access tool (Bry 2026-10-17); the field is not mandatory for them
-		# (patch sales_person_optional_for_nd_invoices).
-		doc.sales_team = []
-		return
 
 	if not doc.bp_sales_person:
-		frappe.throw("Sales Person is required.", title="Missing Sales Person")
+		doc.sales_team = []
+		return
 
 	# Rebuild table unconditionally — catches REST/data-importer saves that skip the browser.
 	doc.sales_team = []

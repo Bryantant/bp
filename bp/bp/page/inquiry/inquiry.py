@@ -134,11 +134,9 @@ def _matching_item_codes(filters):
 # Purchase tab and HPP access
 #
 # The Purchase tab shows purchase prices and suppliers. Who may see it is set
-# in BP Settings > Inquiry Purchase Roles (seeded by
-# bp.patches.v1_0.seed_inquiry_purchase_roles). The HPP column (Balance and
+# in BP Settings > Inquiry Purchase Roles. The HPP column (Balance and
 # Price List tabs, item detail) follows BP Settings > Inquiry HPP Roles, the
-# old program's "Inquiry Harga Pokok" right (seeded by
-# bp.patches.v1_0.seed_inquiry_hpp_roles). System Manager always sees both.
+# old program's "Inquiry Harga Pokok" right. System Manager always sees both.
 # ---------------------------------------------------------------------------
 def _has_inquiry_role(parentfield, user=None):
 	roles = set(frappe.get_roles(user or frappe.session.user))

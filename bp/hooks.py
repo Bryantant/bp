@@ -116,14 +116,6 @@ jinja = {
 # before_install = "bp.install.before_install"
 # after_install = "bp.install.after_install"
 
-# Re-insert the Inquiry link into ERPNext's Selling and Buying sidebars after
-# their JSON is synced (see bp/setup/inquiry_sidebar.py).
-after_migrate = [
-	"bp.setup.inquiry_sidebar.add_inquiry_links",
-	"bp.setup.stock_mutation_sidebar.add_stock_mutation_links",
-	"bp.setup.invoice_kembali_sidebar.add_invoice_kembali_links",
-]
-
 # Uninstallation
 # ------------
 

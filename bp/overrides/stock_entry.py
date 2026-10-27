@@ -11,7 +11,7 @@ user may only post the Material Transfer purpose (type "Relokasi Barang").
 import frappe
 from frappe import _
 
-from bp.patches.v1_0.apply_document_numbering_oct15 import STOCK_ENTRY_SERIES
+from bp.overrides.series import STOCK_ENTRY_SERIES
 
 SALES_ROLES = {"Sales User"}
 FULL_ACCESS_ROLES = {

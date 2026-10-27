@@ -2,10 +2,10 @@ import frappe
 from frappe.tests import IntegrationTestCase
 
 from bp.overrides.sales_invoice import before_insert, before_naming, get_warehouse_name_code
-from bp.patches.v1_0.allow_non_stock_sales_invoices import WAREHOUSE_SERIES
-from bp.patches.v1_0.apply_document_numbering_oct15 import (
+from bp.overrides.series import (
 	SALES_INVOICE_SERIES_OCT15,
 	SALES_NON_STOCK_SERIES_OCT15,
+	WAREHOUSE_SERIES,
 )
 
 

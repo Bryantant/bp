@@ -21,7 +21,7 @@ from frappe.utils import cint
 NAME_PATTERN = re.compile(r"^([A-Za-z]+)(\d+)$")
 
 
-def execute():
+def seed_naming_counters():
 	for doctype in ("Customer", "Supplier"):
 		maxima = defaultdict(int)
 		for (name,) in frappe.db.sql("SELECT name FROM `tab{0}`".format(doctype)):
