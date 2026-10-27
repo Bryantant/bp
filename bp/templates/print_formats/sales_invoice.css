@@ -83,10 +83,10 @@
 
 /* footer: note (left) and totals (right) */
 .print-format .bp-footer { display: flex; justify-content: space-between; margin-top: 3px; }
-.print-format .bp-note { flex: 0 0 56%; font-size: 11px; line-height: 1.25; }
+.print-format .bp-note { flex: 0 0 50%; font-size: 11px; line-height: 1.25; }
 .print-format .bp-note p { margin: 0 !important; }
 .print-format .bp-note .ql-editor { padding: 0 !important; }
-.print-format .bp-totals { flex: 0 0 40%; width: 40% !important; border-bottom: 1px solid #000; margin-top: 6px; }
+.print-format .bp-totals { flex: 0 0 46%; width: 46% !important; border-bottom: 1px solid #000; margin-top: 6px; }
 .print-format .bp-totals td { font-size: 13px !important; font-weight: bold; padding: 0 0 2px 0 !important; }
 .print-format .bp-totals .bp-tot-label { text-align: right !important; padding-right: 30px !important; }
 .print-format .bp-totals .bp-ctr { width: 50px; }
@@ -105,19 +105,19 @@
 }
 .print-format .bp-sign-line span::before { content: "("; position: absolute; left: -2px; bottom: -3px; }
 .print-format .bp-sign-line span::after { content: ")"; position: absolute; right: -2px; bottom: -3px; }
-.print-format .bp-print-stamp { font-size: 8px; color: #b45309 !important; }
+.print-format .bp-print-stamp { font-size: 8px; color: #000 !important; }
 
 /* Sales Invoice columns */
 /* description widened for the one-row lines (was 35%); number columns sized for
    "1,234,567,890.00" and "10.00% + 5.00%" at 11px on the 9.5 in page */
-.print-format .items-table .c-no { width: 5%; }
-.print-format .items-table .c-desc { width: 41.5%; }
+.print-format .items-table .c-no { width: 4.5%; }
+.print-format .items-table .c-desc { width: 31%; }
 .print-format .items-table .c-qty { width: 5%; }
 .print-format .items-table .c-uom { width: 6%; }
-.print-format .items-table .c-price { width: 10.5%; }
-.print-format .items-table .c-pct { width: 11%; }
-.print-format .items-table .c-disc { width: 8.5%; }
-.print-format .items-table .c-net { width: 12.5%; }
+.print-format .items-table .c-price { width: 13.5%; }
+.print-format .items-table .c-pct { width: 12.5%; }
+.print-format .items-table .c-disc { width: 12%; }
+.print-format .items-table .c-net { width: 15.5%; }
 
 /* HT-42: invoice barcode under the document number. Its size comes from the SVG (mm per
    module, see barcode_module_mm in the .html); never scale it, or bars stop being whole dots. */
@@ -131,7 +131,7 @@
    from a <thead>, so the template does it. */
 @page {
 	size: 241.3mm 139.7mm;
-	margin: 5mm 7mm 6mm 7mm;
+	margin: 5mm 40mm 6mm 17mm;
 }
 /* read by the PDF generator (Get PDF): only plain .print-format rules count. In mm, not in:
    frappe convert_uom (print_utils.py) raises KeyError 0 for "in" values (v16.50). */
@@ -140,8 +140,8 @@
 	page-height: 139.7mm;
 	margin-top: 5mm;
 	margin-bottom: 6mm;
-	margin-left: 7mm;
-	margin-right: 7mm;
+	margin-left: 17mm;
+	margin-right: 40mm;
 }
 @media print {
 	.print-format { margin: 0 !important; padding: 0 !important; max-width: none !important; min-height: 0 !important; }
@@ -151,10 +151,22 @@
 	.print-format .bp-sheet-break { border-bottom: 1px dashed #999; padding-bottom: 6mm; margin-bottom: 6mm; }
 }
 .print-format .bp-sheet-break { break-after: page; page-break-after: always; }
-.print-format .bp-left { flex: 0 0 60%; }
+.print-format .bp-left { flex: 0 0 58%; }
 .print-format .bp-right { padding-left: 18px; }
 .print-format .bp-end { break-inside: avoid; page-break-inside: avoid; }
 .print-format .bp-sign { margin-top: 8px; }
 .print-format .bp-sign-space td { height: 22px; }
 .print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
 .print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }
+
+/* LQ-310 prints only 8 in (203 mm) across a 9.5 in form, and where that window sits moves by about 13 mm
+   with how the form is loaded (Bry 2026-10-27, three prints: right side cut at margins 7/7, left 7 mm cut
+   at 7/38, last digit cut at 17/34). Only the part common to all three, page x 14 to 204 mm, always prints,
+   so the block is 184 mm with margins left 17 / right 40 mm. Columns above are sized for it. */
+
+/* Frappe's "Print | Get PDF" links above the format (printview.html) must not reach the paper. Its own
+   .print-hide rule lives in print.bundle.css; repeated here so the print never depends on that file loading
+   (Bry 2026-10-27: the links were printed on the invoice). */
+@media print {
+	.action-banner, .print-hide { display: none !important; }
+}

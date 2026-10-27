@@ -105,7 +105,7 @@
 }
 .print-format .bp-sign-line span::before { content: "("; position: absolute; left: -2px; bottom: -3px; }
 .print-format .bp-sign-line span::after { content: ")"; position: absolute; right: -2px; bottom: -3px; }
-.print-format .bp-print-stamp { font-size: 8px; color: #b45309 !important; }
+.print-format .bp-print-stamp { font-size: 8px; color: #000 !important; }
 
 /* Retur Penjualan columns (legacy PrtSaReForm: no discount columns) */
 .print-format .items-table .c-no { width: 5%; }
@@ -125,7 +125,7 @@
    from a <thead>, so the template does it. */
 @page {
 	size: 241.3mm 139.7mm;
-	margin: 5mm 7mm 6mm 7mm;
+	margin: 5mm 40mm 6mm 17mm;
 }
 /* read by the PDF generator (Get PDF): only plain .print-format rules count. In mm, not in:
    frappe convert_uom (print_utils.py) raises KeyError 0 for "in" values (v16.50). */
@@ -134,8 +134,8 @@
 	page-height: 139.7mm;
 	margin-top: 5mm;
 	margin-bottom: 6mm;
-	margin-left: 7mm;
-	margin-right: 7mm;
+	margin-left: 17mm;
+	margin-right: 40mm;
 }
 @media print {
 	.print-format { margin: 0 !important; padding: 0 !important; max-width: none !important; min-height: 0 !important; }
@@ -153,3 +153,10 @@
 .print-format .bp-sign-space td { height: 22px; }
 .print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
 .print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }
+
+/* Frappe's "Print | Get PDF" links above the format (printview.html) must not reach the paper. Its own
+   .print-hide rule lives in print.bundle.css; repeated here so the print never depends on that file loading
+   (Bry 2026-10-27: the links were printed on the invoice). */
+@media print {
+	.action-banner, .print-hide { display: none !important; }
+}
