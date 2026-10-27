@@ -100,7 +100,7 @@ class TestImportNDInvoice(FrappeTestCase):
 		self.assertEqual(doc.rows[0].cust_code, customer.name)
 		self.assertEqual(doc.rows[0].customer_name, customer.customer_name)
 
-	def test_submit_passes_without_warehouse_or_salesman(self):
+	def test_submit_passes_without_extra_fields(self):
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
@@ -110,21 +110,20 @@ class TestImportNDInvoice(FrappeTestCase):
 			"invoice_date": "2026-01-01",
 			"amount": 1000,
 			"resolved_customer": customer,
-			# no warehouse and no salesman: ND invoices move no stock and carry no salesperson
 		}
 		doc = frappe.get_doc({"doctype": "Import ND Invoice", "rows": [row]})
 		ImportNDInvoice.before_submit(doc)  # must not raise
 
 
 class TestImportNDInvoiceEndToEnd(FrappeTestCase):
-	"""HT-4: submit creates a Draft Sales Invoice that can itself be submitted.
+	"""HT-4: submitting a batch creates Sales Invoices that are already submitted, with Update Stock off.
 
 	Earlier this failed with "Source Warehouse is required" because the import
 	never sets set_warehouse; follow_standard_sales_invoice_warehouse made it
 	optional again. Run in a transaction that is rolled back afterwards.
 	"""
 
-	def test_submit_creates_draft_invoice_that_submits(self):
+	def test_submit_creates_submitted_invoice_without_stock(self):
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
@@ -146,21 +145,22 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 
 		si = frappe.get_doc("Sales Invoice", batch.rows[0].sales_invoice)
 		self.assertEqual(si.name, "TEST-ND-E2E-1")  # named after the ND Invoice Number
-		self.assertEqual(si.docstatus, 0)
+		self.assertEqual(si.docstatus, 1)
+		self.assertEqual(si.update_stock, 0)
 		self.assertEqual(si.customer, customer)
 		self.assertEqual(si.custom_nd_invoice_no, "TEST-ND-E2E-1")
-		# The import passes no warehouse; ERPNext may still fill the item's default one.
-		# That moves no stock (the placeholder is non-stock), checked below after submit.
 		self.assertEqual(si.grand_total, 125000)
 		self.assertFalse(si.bp_sales_person)
 		self.assertFalse(si.sales_team)
-
-		si.submit()
-		self.assertEqual(si.docstatus, 1)
 		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": si.name}))
+
+		batch.cancel()
+		self.assertEqual(frappe.db.get_value("Sales Invoice", si.name, "docstatus"), 2)
 
 	def test_submit_blocked_when_nd_number_is_taken_as_invoice_name(self):
 		taken = frappe.db.get_value("Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name")
+		if not taken:
+			self.skipTest("needs an existing Sales Invoice that did not come from an ND import")
 		customer, nd_code = frappe.db.get_value(
 			"Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, ["name", "custom_nd_code"]
 		)
@@ -173,7 +173,6 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 						"cust_code_nd": nd_code,
 						"invoice_date": frappe.utils.today(),
 						"amount": 1,
-						"salesman": frappe.db.get_value("Sales Person", {"is_group": 0}, "name"),
 						"resolved_customer": customer,
 					}
 				],
@@ -242,8 +241,20 @@ class TestPasteFromExcel(FrappeTestCase):
 			],
 		)
 
-	def test_paste_without_header_is_refused(self):
-		self.assertRaises(frappe.ValidationError, parse_pasted, "I261000444\t17/10/2026\t17CDFN1003\t1000")
+	def test_paste_without_header_uses_the_nd_column_order(self):
+		result = parse_pasted(
+			"I261000444\t17/10/2026\t17CDFN1003\t1000\nSubtotal (1)\t\t\t1000\n\t\t\t\nI261000435\t17/10/2026\t17CDDR1004\t5"
+		)
+		self.assertEqual(result["errors"], [])
+		self.assertEqual(
+			[(r["nd_invoice_no"], r["cust_code_nd"], r["invoice_date"], r["amount"]) for r in result["rows"]],
+			[("I261000444", "17CDFN1003", "2026-10-17", 1000), ("I261000435", "17CDDR1004", "2026-10-17", 5)],
+		)
+
+	def test_paste_with_incomplete_header_is_refused(self):
+		self.assertRaises(
+			frappe.ValidationError, parse_pasted, "Invoice Number\tInvoice Date\n I1\t17/10/2026"
+		)
 
 	def test_paste_reports_unreadable_cells(self):
 		text = (
@@ -257,3 +268,18 @@ class TestPasteFromExcel(FrappeTestCase):
 		# line numbers count the blank lines too, so they match the copied rows
 		result = parse_pasted("Invoice Number\tCustomerID\tInvoice Date\tNet Amount\n\nI1\tC1\tbesok\t100")
 		self.assertIn("Line 3", result["errors"][0])
+
+	def test_paste_skips_subtotal_and_report_total_lines(self):
+		# layout of the ND report: groups closed by "Subtotal (n)", then "Report Total"
+		text = (
+			"Invoice Number\tInvoice Date\tCustomerID\tNet Amount\n"
+			"I261000444\t17/10/2026\t17CDFN1003\t1016195.7\n"
+			"\t\t\t\n"
+			"I261000435\t17/10/2026\t17CDDR1004\t204281\n"
+			"Subtotal (1)\t\t\t204281\n"
+			"\t\t\t\n"
+			"Report Total\t\t\t1220476.7\n"
+		)
+		result = parse_pasted(text)
+		self.assertEqual(result["errors"], [])
+		self.assertEqual([r["nd_invoice_no"] for r in result["rows"]], ["I261000444", "I261000435"])

@@ -7,13 +7,11 @@
  "engine": "InnoDB",
  "field_order": [
   "nd_invoice_no",
+  "invoice_date",
   "cust_code_nd",
+  "amount",
   "cust_code",
   "customer_name",
-  "invoice_date",
-  "amount",
-  "salesman",
-  "warehouse",
   "resolved_customer",
   "sales_invoice"
  ],
@@ -68,23 +66,6 @@
    "label": "Amount",
    "non_negative": 1,
    "reqd": 1
-  },
-  {
-   "columns": 2,
-   "description": "Optional.",
-   "fieldname": "salesman",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Salesman",
-   "options": "Sales Person"
-  },
-  {
-   "description": "Not used: ND invoices move no stock (Bry 2026-10-19). Kept for old batches.",
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse",
-   "hidden": 1
   },
   {
    "description": "Resolved from Cust Code ND on save. Blank means no matching Customer was found.",

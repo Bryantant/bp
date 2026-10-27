@@ -9,41 +9,11 @@ frappe.ui.form.on("Import ND Invoice", {
 	paste_button(frm) {
 		bp.import_sales_invoice.read_clipboard(frm);
 	},
-
-	// Changing the header default overwrites it on every existing row, not just
-	// blank ones (same as Source Warehouse on Sales Invoice).
-	default_salesman(frm) {
-		bp.import_sales_invoice.autofill_rows(frm, "salesman", frm.doc.default_salesman);
-	},
-});
-
-frappe.ui.form.on("Import ND Invoice Item", {
-	// Fires when a row is added via the grid's own "Add Row" button (not for
-	// frm.add_child calls from our own code, e.g. load_rows below --
-	// that path applies defaults itself before adding the row). Frappe scopes
-	// "<fieldname>_add" handlers by the CHILD doctype, not the parent, since
-	// script_manager.trigger() is called with the child row's own doctype.
-	rows_add(frm, cdt, cdn) {
-		bp.import_sales_invoice.apply_defaults_to_row(frm, locals[cdt][cdn]);
-	},
 });
 
 frappe.provide("bp.import_sales_invoice");
 
 bp.import_sales_invoice = {
-	autofill_rows: function (frm, fieldname, value) {
-		if (!value || !frm.doc.rows || !frm.doc.rows.length) return;
-		frm.doc.rows.forEach((row) =>
-			frappe.model.set_value(row.doctype, row.name, fieldname, value)
-		);
-	},
-
-	apply_defaults_to_row: function (frm, row) {
-		if (frm.doc.default_salesman && !row.salesman) {
-			frappe.model.set_value(row.doctype, row.name, "salesman", frm.doc.default_salesman);
-		}
-	},
-
 	read_clipboard: function (frm) {
 		const fallback = () => bp.import_sales_invoice.paste_dialog(frm);
 		if (!navigator.clipboard || !navigator.clipboard.readText) return fallback();
@@ -67,7 +37,7 @@ bp.import_sales_invoice = {
 					fieldtype: "Long Text",
 					label: __("Data"),
 					description: __(
-						"Copy rows in Excel including the header row (Invoice Number, Invoice Date, CustomerID, Net Amount), then paste here with Ctrl+V or Cmd+V."
+						"Copy rows in Excel (columns: Invoice Number, Invoice Date, CustomerID, Net Amount; the header row is optional), then paste here with Ctrl+V or Cmd+V."
 					),
 				},
 			],
@@ -109,7 +79,6 @@ bp.import_sales_invoice = {
 				var added = 0;
 				(msg.rows || []).forEach(function (row) {
 					if (existing.has(row.nd_invoice_no)) return;
-					if (frm.doc.default_salesman) row.salesman = frm.doc.default_salesman;
 					frm.add_child("rows", row);
 					existing.add(row.nd_invoice_no);
 					added++;

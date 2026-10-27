@@ -5,11 +5,6 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_items",
-  "column_break_defaults",
-  "default_warehouse",
-  "column_break_ovjo",
-  "default_salesman",
   "section_break_ifhm",
   "paste_button",
   "excel_file",
@@ -20,29 +15,7 @@
  ],
  "fields": [
   {
-   "fieldname": "section_break_items",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "default_warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse",
-   "hidden": 1,
-   "description": "Not used: ND invoices move no stock (Bry 2026-10-19). Kept for old batches."
-  },
-  {
-   "fieldname": "column_break_defaults",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "default_salesman",
-   "fieldtype": "Link",
-   "label": "Salesman",
-   "options": "Sales Person"
-  },
-  {
-   "description": "Di Excel, blok data termasuk baris judul kolom (Invoice Number, Invoice Date, CustomerID, Net Amount), copy, lalu klik tombol ini.",
+   "description": "Di Excel, blok baris data (kolom: Invoice Number, Invoice Date, CustomerID, Net Amount; baris judul boleh ikut atau tidak), copy, lalu klik tombol ini.",
    "fieldname": "paste_button",
    "fieldtype": "Button",
    "label": "Paste dari Excel"
@@ -63,7 +36,7 @@
    "fieldtype": "Section Break"
   },
   {
-   "description": "Paste rows from Excel with the Paste dari Excel button, or add rows manually. Set Salesman on each row if needed before submitting.",
+   "description": "Paste rows from Excel with the Paste dari Excel button, or add rows manually.",
    "fieldname": "rows",
    "fieldtype": "Table",
    "options": "Import ND Invoice Item",
@@ -81,10 +54,6 @@
   {
    "fieldname": "section_break_ifhm",
    "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "column_break_ovjo",
-   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,

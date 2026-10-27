@@ -12,18 +12,21 @@ Each Sales Invoice is named after the ND "Invoice Number" from the Excel file
 (e.g. I260700167), not the BP naming series -- client decision 2026-10-17.
 The batch itself keeps its own INDI-YYYY-##### name.
 
-Salesman is optional: ND invoices carry no salesperson, as in the old Access
-tool (Bry 2026-10-17). Warehouse is not used either: the placeholder item is a
-non-stock item, so the invoices move no stock (Bry 2026-10-19). The fields stay,
-hidden, so batches made before that still open.
+Each batch row becomes a Sales Invoice that is submitted right away, with Update Stock off
+(Bry 2026-10-25).
+
+ND invoices carry no salesperson, as in the old Access tool (Bry 2026-10-17), and
+the placeholder item is a non-stock item, so they move no stock (Bry 2026-10-19):
+the batch has no Salesman or Warehouse fields (removed 2026-10-24).
 
 Rows come in by copy-paste (Bry 2026-10-23, replaces the Excel file upload):
-the user selects the ND export in Excel *with its header row*, copies, and
+the user selects the ND export rows in Excel (header row optional), copies, and
 clicks "Paste dari Excel"; the browser sends the clipboard text (tab-separated)
 to parse_pasted(). The ND System's export (InvND) uses column headers that
 don't match Frappe field-label conventions, so COLUMN_MAP is hardcoded rather
 than left to generic column matching, matched case-insensitively ("CustomerID"
-vs "CustomerId"), in any column order, extra columns ignored. Only 4 columns are
+vs "CustomerId"), in any column order, extra columns ignored; the report's blank
+lines and its Subtotal / Report Total lines are skipped without a message. Only 4 columns are
 read (Invoice Number, Invoice Date, CustomerID, Net Amount) -- Cust Code and
 Customer Name are derived from the matched Customer record in
 resolve_customers().
@@ -33,9 +36,8 @@ ND export's date cells use Excel's built-in short date, so the same file pastes
 as 17/10/2026 on an Indonesian PC and 10/17/2026 on a US one, and amounts as
 1.016.195,70 or 1,016,195.70. parse_dates() settles day/month order for the
 whole paste (a part above 12 decides; otherwise the month in the ND invoice
-number, I26*10*00444) and parse_amount() reads either separator style. Salesman is not in the Excel file at
-all -- it's filled in manually in the grid, over as many saves as needed,
-before Submit. Unlike SOBatch.validate(), this validate() never blocks a Draft save
+number, I26*10*00444) and parse_amount() reads either separator style.
+Unlike SOBatch.validate(), this validate() never blocks a Draft save
 on unresolved/incomplete rows -- it only resolves what it can. All hard
 requirements are enforced once, all-or-nothing, in before_submit() -- NOT
 on_submit(): before_submit runs before docstatus=1 is written to the
@@ -59,11 +61,14 @@ from frappe.utils import flt
 # Headers as the ND export writes them; COLUMN_MAP (matched case-insensitively) is built from them.
 TEMPLATE_COLUMNS = [
 	("Invoice Number", "nd_invoice_no"),
-	("CustomerID", "cust_code_nd"),
 	("Invoice Date", "invoice_date"),
+	("CustomerID", "cust_code_nd"),
 	("Net Amount", "amount"),
 ]
 COLUMN_MAP = {header.lower(): fieldname for header, fieldname in TEMPLATE_COLUMNS}
+# The ND report groups invoices and closes each group with "Subtotal (5)" and the report with
+# "Report Total" in the Invoice Number column; those lines are not invoices.
+SUMMARY_LINE = re.compile(r"^(sub\s*total|report\s+total|grand\s+total)\b", re.IGNORECASE)
 
 
 def _resolve_customer_map(cust_code_nd_values):
@@ -171,7 +176,8 @@ class ImportNDInvoice(Document):
 			si.customer = row.resolved_customer
 			si.posting_date = row.invoice_date
 			si.set_posting_time = 1
-			si.bp_sales_person = row.salesman
+			# ND invoices move no stock (the placeholder is non-stock); never let a default turn it on
+			si.update_stock = 0
 			si.custom_nd_invoice_no = row.nd_invoice_no
 			si.append(
 				"items",
@@ -183,6 +189,10 @@ class ImportNDInvoice(Document):
 			)
 			# set_name skips before_naming and the naming series entirely
 			si.insert(ignore_permissions=True, set_name=row.nd_invoice_no)
+			# Submitted straight away (Bry 2026-10-25). If it fails the exception rolls back the
+			# whole batch, so no half-created set of invoices is left behind.
+			si.flags.ignore_permissions = True
+			si.submit()
 			# on_submit runs after this document's own db_update() already ran, so mutating
 			# row.sales_invoice in-memory alone would silently not persist -- write it directly.
 			frappe.db.set_value(
@@ -191,7 +201,7 @@ class ImportNDInvoice(Document):
 			row.sales_invoice = si.name
 
 		created = [row.sales_invoice for row in self.rows]
-		lines = [_("<b>{0} Sales Invoice(s) created (Draft):</b>").format(len(created))]
+		lines = [_("<b>{0} Sales Invoice(s) created and submitted:</b>").format(len(created))]
 		for name in created:
 			lines.append(f"&bull; <a href='/app/sales-invoice/{name}'>{name}</a>")
 		frappe.msgprint("<br>".join(lines), title=_("Import Complete"), indicator="green")
@@ -309,7 +319,7 @@ def parse_dates(cells):
 
 @frappe.whitelist()
 def parse_pasted(text):
-	"""Parse ND rows copied from Excel (tab-separated, header row first) into plain row dicts.
+	"""Parse ND rows copied from Excel (tab-separated, header row optional) into plain row dicts.
 
 	Does not insert or save anything -- the client adds returned rows to the
 	in-memory child table, so nothing persists until the user Saves/Submits.
@@ -322,7 +332,7 @@ def parse_pasted(text):
 	# keep each line's own number (blank lines included) so errors match the rows the user copied
 	table = [(no, line.split("\t")) for no, line in enumerate(text.split("\n"), start=1) if line.strip()]
 	if not table:
-		frappe.throw(_("The clipboard is empty. Copy the rows in Excel first, including the header row."))
+		frappe.throw(_("The clipboard is empty. Copy the rows in Excel first."))
 
 	column_index = {}
 	for idx, cell in enumerate(table[0][1]):
@@ -330,18 +340,25 @@ def parse_pasted(text):
 		if fieldname:
 			column_index[fieldname] = idx
 
-	missing = [header for header, fieldname in TEMPLATE_COLUMNS if fieldname not in column_index]
-	if missing:
-		frappe.throw(
-			_("The copied rows have no header row with: {0}. Copy again including the header row.").format(
-				", ".join(missing)
+	if column_index:
+		# a header row came along; it may be in any column order
+		missing = [header for header, fieldname in TEMPLATE_COLUMNS if fieldname not in column_index]
+		if missing:
+			frappe.throw(
+				_("The copied header row has no: {0}. Copy again with all four columns.").format(
+					", ".join(missing)
+				)
 			)
-		)
+		data_lines = table[1:]
+	else:
+		# no header row (data rows only): the ND report's own column order
+		column_index = {fieldname: i for i, (_header, fieldname) in enumerate(TEMPLATE_COLUMNS)}
+		data_lines = table
 
 	raw, errors = [], []
-	for line_no, cells in table[1:]:
+	for line_no, cells in data_lines:
 		values = {f: (cells[i].strip() if i < len(cells) else "") for f, i in column_index.items()}
-		if not any(values.values()):
+		if not any(values.values()) or SUMMARY_LINE.match(values["nd_invoice_no"]):
 			continue
 		if not values["nd_invoice_no"]:
 			errors.append(_("Line {0}: missing Invoice Number").format(line_no))
