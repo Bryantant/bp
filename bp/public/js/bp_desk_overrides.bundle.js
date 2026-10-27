@@ -129,3 +129,23 @@
 		});
 	};
 })();
+
+// Cmd/Ctrl+P on the Print page (desk/printing/print/<doctype>/<name>) presses its Print button.
+// Without this Chrome prints the whole Desk page (sidebar, settings, small preview) to the default
+// printer. Desk has no shortcut for the Print button there (Ctrl+S only reaches forms), so bind one.
+// Capture phase, so Chrome's own print dialog never opens. Focus must be outside the preview iframe.
+(function printPageShortcut() {
+	document.addEventListener(
+		"keydown",
+		function (e) {
+			if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "p") return;
+			if (!window.frappe || !frappe.get_route || frappe.get_route()[0] !== "print") return;
+			var btn = $(".page-actions .primary-action:visible").first();
+			if (!btn.length) return;
+			e.preventDefault();
+			e.stopPropagation();
+			btn.trigger("click");
+		},
+		true
+	);
+})();
