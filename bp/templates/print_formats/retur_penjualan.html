@@ -73,7 +73,18 @@
 {% set doc_number = doc.name %}
 
 {#- One row per line, as on the Invoice; sizes tuned to this format's CSS. -#}
-{% set pages = bp_paginate(doc.items, one_line=True, page_px=285, last_page_px=125) %}
+{#- Description wraps (Bry 2026-10-29): every line becomes a dict with its height in px (bp_px, as in the
+    Payment Note): 5 px plus 14.3 px per printed line, lines = joined description / 46 characters rounded up
+    (46 is a little under what the column holds, so a word-wrap never needs more lines than counted). Re-derive
+    46 after changing the DESCRIPTION column width. -#}
+{% set _lines = [] %}
+{% for _row in doc.items %}
+	{% set _d = _row.as_dict() %}
+	{% set _n = [1, ((bp_item_line(_row.description or _row.item_name)|length) / 46)|round(0, "ceil")|int]|max %}
+	{% set _ = _d.update({"bp_px": 5 + 14.3 * _n}) %}
+	{% set _ = _lines.append(_d) %}
+{% endfor %}
+{% set pages = bp_paginate(_lines, page_px=285, last_page_px=125) %}
 {% for page in pages %}
 {% set page_no = loop.index %}
 <div class="bp-legacy-format bp-sheet{% if not loop.last %} bp-sheet-break{% endif %}">

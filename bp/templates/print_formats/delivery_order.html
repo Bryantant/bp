@@ -90,6 +90,18 @@
 	{% if _tc %}{% set invoice_note = frappe.db.get_value("Terms and Conditions", _tc, "terms") or "" %}{% endif %}
 {% endif %}
 
+{#- Document remark: the Sales Invoice "Remarks" field (legacy Memo, DeliOrde.DONotesx, which the
+    legacy invoice printed under the note). ERPNext fills "No Remarks" when the field is empty,
+    so that text counts as empty. remark_lines (explicit lines + wrapping at ~70 characters) is
+    taken off the room bp_paginate keeps for the footer on the last sheet. -#}
+{% set doc_remark = (doc.remarks or "")|trim %}
+{% if doc_remark == "No Remarks" %}{% set doc_remark = "" %}{% endif %}
+{% set _rl = namespace(n=0) %}
+{% for _ln in doc_remark.split("\n") if doc_remark %}
+	{% set _rl.n = _rl.n + [1, ((_ln|length) / 70)|round(0, "ceil")|int]|max %}
+{% endfor %}
+{% set remark_lines = _rl.n %}
+
 {#- Bottom-right "printed by / at" stamp -- blank until the invoice has
     actually been printed once (bp_last_printed_by/at, set by
     bp/overrides/sales_invoice.py's print-lock gate). -#}
@@ -118,7 +130,18 @@
     lines bp_paginate (bp/utils/print_layout.py) puts there, totals and
     signatures on the last. Sizes in px are tuned to the CSS of this format;
     re-check them after changing fonts, header or footer. -#}
-{% set pages = bp_paginate(doc.items, one_line=True, page_px=285, last_page_px=150) %}
+{#- Description wraps (Bry 2026-10-29): every line becomes a dict with its height in px (bp_px, as in the
+    Payment Note): 5 px plus 14.3 px per printed line, lines = joined description / 41 characters rounded up
+    (41 is a little under what the column holds, so a word-wrap never needs more lines than counted). Re-derive
+    41 after changing the DESCRIPTION column width. -#}
+{% set _lines = [] %}
+{% for _row in doc.items %}
+	{% set _d = _row.as_dict() %}
+	{% set _n = [1, ((bp_item_line(_row.description or _row.item_name)|length) / 41)|round(0, "ceil")|int]|max %}
+	{% set _ = _d.update({"bp_px": 5 + 14.3 * _n}) %}
+	{% set _ = _lines.append(_d) %}
+{% endfor %}
+{% set pages = bp_paginate(_lines, page_px=285, last_page_px=150 - 14 * remark_lines) %}
 {% for page in pages %}
 {% set page_no = loop.index %}
 <div class="bp-legacy-format bp-sheet{% if not loop.last %} bp-sheet-break{% endif %}">
@@ -177,7 +200,7 @@
 		{#- totals, note and signatures: once, after the last item, never split -#}
 		<div class="bp-end">
 			<div class="bp-footer">
-				<div class="bp-note bp-note-full">{{ invoice_note|safe }}</div>
+				<div class="bp-note bp-note-full">{{ invoice_note|safe }}{% if doc_remark %}<div class="bp-remark"><b>Remark :</b> {% for _ln in doc_remark.split("\n") %}{{ _ln|e }}{% if not loop.last %}<br>{% endif %}{% endfor %}</div>{% endif %}</div>
 			</div>
 
 			<table class="bp-sign">

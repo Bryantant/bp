@@ -110,14 +110,14 @@
 /* Sales Invoice columns */
 /* description widened for the one-row lines (was 35%); number columns sized for
    "1,234,567,890.00" and "10.00% + 5.00%" at 11px on the 9.5 in page */
-.print-format .items-table .c-no { width: 4.5%; }
-.print-format .items-table .c-desc { width: 31%; }
+.print-format .items-table .c-no { width: 4%; }
+.print-format .items-table .c-desc { width: 33.5%; }
 .print-format .items-table .c-qty { width: 5%; }
 .print-format .items-table .c-uom { width: 6%; }
 .print-format .items-table .c-price { width: 13.5%; }
 .print-format .items-table .c-pct { width: 12.5%; }
-.print-format .items-table .c-disc { width: 12%; }
-.print-format .items-table .c-net { width: 15.5%; }
+.print-format .items-table .c-disc { width: 11%; }
+.print-format .items-table .c-net { width: 14.5%; }
 
 /* HT-42: invoice barcode under the document number. Its size comes from the SVG (mm per
    module, see barcode_module_mm in the .html); never scale it, or bars stop being whole dots. */
@@ -157,7 +157,8 @@
 .print-format .bp-sign { margin-top: 8px; }
 .print-format .bp-sign-space td { height: 22px; }
 .print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
-.print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }
+/* description wraps instead of being cut (Bry 2026-10-29); bp_paginate counts the wrapped lines */
+.print-format .items-table td.bp-desc-1 { white-space: normal !important; overflow-wrap: anywhere; }
 
 /* LQ-310 prints only 8 in (203 mm) across a 9.5 in form, and where that window sits moves by about 13 mm
    with how the form is loaded (Bry 2026-10-27, three prints: right side cut at margins 7/7, left 7 mm cut
@@ -170,3 +171,7 @@
 @media print {
 	.action-banner, .print-hide { display: none !important; }
 }
+
+/* document remark under the note (legacy Memo) */
+.print-format .bp-remark { margin-top: 8px; font-size: 11px; line-height: 1.25; }
+.print-format .bp-remark b { font-weight: bold; }

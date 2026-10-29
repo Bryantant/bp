@@ -224,17 +224,23 @@ trial-and-error:
   AMOUNT, TOTAL = `doc.total` (Disc / Grand Total only when they differ), signatures Customer by / Received by /
   Approved by / company + Admin. ERP return lines are negative: every figure prints through `|abs`. Default print
   of a return with goods via `bp/public/js/sales_invoice.js` (see §3, sticky print format).
-- **One row per line (client request, Bry 2026-10-17):** `bp_item_line(row.description or row.item_name)` joins
-  the description parts (item name, then the legacy brand/code line) with a space and drops the legacy placeholder
-  words made only of `-`/`=` (`==== A-06` -> `A-06`, `- -` -> nothing). Body cells are `nowrap`; a description too
-  long for its column ends in an ellipsis. Sales Invoice DESCRIPTION is 41.5% wide (was 35%).
-- The orange "user date time" stamp under Admin copies the legacy print ("kris 7/21/2026 12:12:42 PM"); Bry
-  2026-10-17: keep it as is.
-- **Print stamp ("user date time" under Admin) is black, not orange (Bry 2026-10-27):** orange `#b45309` printed too faint on the dot-matrix paper. Stays 8 px.
-- Columns follow the legacy Access report PrtInvForm: PRICE = list price before discount (`price_list_rate`), DISC % =
-  cascaded percentages joined with " + " (blank if none), DISCOUNT = nominal discount amounts (blank if 0), NET AMOUNT =
-  line amount. Description: see "One row per line". Salesman prints the
-  Sales Person name. Customer block: address line 1 " - " line 2, then "Tel : ...   Fax : ...".
+- **Description wraps (Bry 2026-10-29, replaces "one row per line" of 2026-10-17):** `bp_item_line(row.description
+  or row.item_name)` joins the description parts (item name, then the legacy brand/code line) with a space and drops
+  the legacy placeholder words made only of `-`/`=` (`==== A-06` -> `A-06`, `- -` -> nothing). Only the `td.bp-desc-1`
+  cell wraps (`white-space: normal`); other body cells stay `nowrap`. No app code: the template turns every item into
+  a dict with its height `bp_px` (as the Payment Note does) = 5 px + 14.3 px x ceil(joined length / N), then calls
+  `bp_paginate(_lines, page_px, last_page_px)`. N is a little under what the column holds (about 6.6 px per
+  character), so a word wrap never needs more lines than counted: Invoice 30, Delivery Order 41, Retur Penjualan 46,
+  Surat Jalan Sementara 41. Re-derive N after changing a DESCRIPTION column width. Purchase Order, Penerimaan Barang
+  (+ Harga) and Mutasi Barang (+ Harga) are not changed: prod already prints their description over several lines
+  (`item_desc` macro), a newer version than the repo files.
+- **Document remark (Bry 2026-10-29):** Sales Invoice `remarks` ("Remarks" on the form, legacy Memo `DeliOrde.DONotesx`)
+  prints under the footer note on both Invoice and Delivery Order (`.bp-remark`, 11 px, left column). ERPNext fills
+  "No Remarks" when empty, so the template treats that text as empty. Lines are HTML-escaped; the room bp_paginate keeps
+  for the last sheet shrinks by 14 px per remark line (explicit lines, wrap guessed at 70 characters). Legacy check
+  (`bp-trd.mdb`, 2026-10-29): PrtInvForm/PrtInvFormC/PrtDOSForm print DONotesx (text box under the note), PrtDOForm
+  does not and its REMARK column is an empty box; 1,757 of 6,647 DOs since 1 Sep 2026 carried a memo ("ANTAR HARI
+  INI", "JEMPUT GUDANG", names).
 - Footer note: `doc.terms`, else the company's `default_selling_terms` ("Informasi Rekening" = legacy DONotesx text).
 - **Paper (Bry 2026-10-17): continuous form 9.5 x 5.5 in on dot-matrix printers, Sales Invoice document only**
   (both formats here; PO, Penerimaan Barang, Mutasi Barang, Payment Note, Journal Voucher stay A4). `@page` is
@@ -243,7 +249,7 @@ trial-and-error:
   8 in (203 mm) across the form, and where that window starts moves a few mm with how the form sits on the tractors.
   Observed: window ends at 204 mm of the old content (right side cut at 7 mm margin), next print the window started
   7 mm in (left side cut). 17 mm left / 40 mm right (184 mm) keeps the block inside the part common to three prints (page x 14-204 mm). Sales Invoice columns (no 4.5,
-  desc 31, qty 5, uom 6, price 13.5, % 12.5, discount 12, net 15.5) are sized for it; check a worst-case row after
+  desc 33.5, qty 5, uom 6, price 13.5, % 12.5, discount 11, net 14.5) are sized for it; check a worst-case row after
   any change. Confirmed on paper (LQ-310, prod, INV-B26100006, 2026-10-27): NET AMOUNT, totals and the signature company name all print. Use mm: Frappe `convert_uom` raises KeyError 0 for `in` values (v16.50), which breaks Get PDF.
 - **One sheet per page, drawn by the template.** Chrome does not repeat a `<thead>` this tall (our header is ~1/3
   of the page), so the legacy "header on every page" is done in Jinja: `bp_paginate(doc.items, one_line,

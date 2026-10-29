@@ -150,7 +150,8 @@
 .print-format .bp-sign { margin-top: 8px; }
 .print-format .bp-sign-space td { height: 22px; }
 .print-format .items-table tbody td { white-space: nowrap !important; overflow: hidden; }
-.print-format .items-table td.bp-desc-1 { text-overflow: ellipsis; }
+/* description wraps instead of being cut (Bry 2026-10-29); bp_paginate counts the wrapped lines */
+.print-format .items-table td.bp-desc-1 { white-space: normal !important; overflow-wrap: anywhere; }
 
 /* Frappe's "Print | Get PDF" links above the format (printview.html) must not reach the paper. Its own
    .print-hide rule lives in print.bundle.css; repeated here so the print never depends on that file loading
