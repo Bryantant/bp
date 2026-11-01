@@ -184,7 +184,7 @@ def get_balance(filters=None):
 
 	items = frappe.db.sql(
 		f"""
-		select it.item_code, it.item_name, it.brand, it.stock_uom, it.valuation_rate
+		select it.item_code, it.item_name, it.brand, it.stock_uom
 		from `tabItem` it
 		where {where}
 		order by it.item_code
@@ -194,6 +194,7 @@ def get_balance(filters=None):
 		as_dict=True,
 	)
 
+	hpp = _item_hpp([it.item_code for it in items])
 	by_item = {}
 	for it in items:
 		row = {
@@ -202,7 +203,7 @@ def get_balance(filters=None):
 			"brand": it.brand,
 			"stock_uom": it.stock_uom,
 			"total_qty": 0.0,
-			"hpp": flt(it.valuation_rate),
+			"hpp": hpp.get(it.item_code, 0.0),
 		}
 		for wh in warehouses:
 			row[wh] = 0.0
@@ -238,6 +239,40 @@ def get_balance(filters=None):
 	]
 
 	return _strip_hpp({"columns": columns, "data": list(by_item.values())})
+
+
+def _item_hpp(item_codes):
+	"""HPP per item code, in one query: cost comes from Bin, not from Item.valuation_rate.
+
+	Stock transactions (Stock Reconciliation included) never update Item.valuation_rate, only
+	Bin. Weighted average over the bins that hold stock; an item without stock uses the plain
+	average of its Bin rates, then Item.valuation_rate as the last resort.
+	"""
+	item_codes = tuple(item_codes)
+	if not item_codes:
+		return {}
+
+	rows = frappe.db.sql(
+		"""
+		select it.item_code, it.valuation_rate as item_rate,
+			sum(case when b.actual_qty > 0 then b.stock_value else 0 end) as stock_value,
+			sum(case when b.actual_qty > 0 then b.actual_qty else 0 end) as qty,
+			avg(case when b.valuation_rate > 0 then b.valuation_rate end) as bin_rate
+		from `tabItem` it
+		left join `tabBin` b on b.item_code = it.item_code
+		where it.item_code in %(items)s
+		group by it.item_code, it.valuation_rate
+		""",
+		{"items": item_codes},
+		as_dict=True,
+	)
+	hpp = {}
+	for r in rows:
+		if flt(r.qty) > 0 and flt(r.stock_value) > 0:
+			hpp[r.item_code] = flt(r.stock_value) / flt(r.qty)
+		else:
+			hpp[r.item_code] = flt(r.bin_rate) or flt(r.item_rate)
+	return hpp
 
 
 def _strip_hpp(result):
@@ -389,13 +424,14 @@ def get_price_list(filters=None):
 		pluck="name",
 	)
 
-	# Item meta: description, brand, stock uom, hpp.
+	# Item meta: description, brand, stock uom.
 	items = frappe.get_all(
 		"Item",
 		filters={"item_code": ["in", item_codes]},
-		fields=["item_code", "item_name", "brand", "stock_uom", "valuation_rate"],
+		fields=["item_code", "item_name", "brand", "stock_uom"],
 	)
 	item_meta = {it.item_code: it for it in items}
+	hpp = _item_hpp(item_codes)
 
 	# Total stock per item (company leaf warehouses).
 	stock = {}
@@ -438,7 +474,7 @@ def get_price_list(filters=None):
 				"ccy": p.currency,
 				"qty": stock.get(p.item_code, 0.0),
 				"unit": uom,
-				"hpp": flt(meta.get("valuation_rate")),
+				"hpp": hpp.get(p.item_code, 0.0),
 			}
 			for pl in selling_lists:
 				row[pl] = None
@@ -477,7 +513,7 @@ def get_item_detail(item_code):
 	item = frappe.db.get_value(
 		"Item",
 		item_code,
-		["item_code", "item_name", "stock_uom", "valuation_rate", "image"],
+		["item_code", "item_name", "stock_uom", "image"],
 		as_dict=True,
 	)
 	if not item:
@@ -539,5 +575,5 @@ def get_item_detail(item_code):
 		"uoms": list(uom_rows.values()),
 	}
 	if can_view_hpp():
-		detail["hpp"] = flt(item.valuation_rate)
+		detail["hpp"] = _item_hpp([item_code]).get(item_code, 0.0)
 	return detail
