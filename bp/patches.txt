@@ -14,3 +14,4 @@ bp.patches.v1_0.create_surat_jalan_sementara_print_format
 bp.patches.v1_0.create_quotation_print_format
 bp.patches.v1_0.swap_surat_jalan_delivery_order_names
 bp.patches.v1_0.delivery_note_as_delivery_order
+bp.patches.v1_0.create_payment_entry_print_format

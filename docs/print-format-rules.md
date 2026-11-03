@@ -335,7 +335,8 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
 | Purchase Order (default) | Purchase Order | PrtPOForm | Supplier phone/fax from `supplier_address`, Attn = `contact_display`, Send To = shipping address line1/line2/city in one line (else warehouse code). AMOUNT = qty x list price (gross); Netto = `grand_total`, Gross/Discount lines only when there is a discount. Signatures Supplier Confirmation / MANAGER / PURCHASING |
 | Penerimaan Barang (default) / Penerimaan Barang Harga | Purchase Invoice | PrtRDOForm | Legacy hid prices unless "Cetak Harga": the default has no prices. Also prints DO Supp. (`bill_no`) and the PO numbers of the lines. Note = `custom_note` only (`remarks` holds ERPNext's auto text). Discount = (list price - rate) x qty |
 | Mutasi Barang (default) / Mutasi Barang Harga | Stock Entry | PrtStockMut*, PrtStockMutRelForm*, PrtStockMutSetForm | Title by type: MUTASI BARANG (Masuk/Keluar, Status IN/OUT), PEMINDAHAN BARANG (Relokasi, Lokasi "X ke Y"), MUTASI BARANG SET (Rakit Set, rows grouped Barang : Masuk / Keluar). No. = `custom_legacy_no` (Ref. = name) else name. Migrated rows have `basic_amount` 0, so AMOUNT = qty x `basic_rate` |
-| Payment Note (default) | Payment Entry | PrtRNForm / PrtPNForm | Title Receiving Note (Receive) / Payment Note (Pay) / Transfer Note (Internal Transfer: one line, From / To accounts in the bottom block); bottom block pinned to the page foot (`min-height: 262mm`). Deductions: Pay adds them to Paid With (paid = allocated + deductions); Receive takes them off the bank lines from the last one backwards (received + deductions = allocated), so both totals stay equal as in the legacy Receiving Note (2026-10-21) |
+| Payment Note | Payment Entry | PrtRNForm / PrtPNForm | Title Receiving Note (Receive) / Payment Note (Pay) / Transfer Note (Internal Transfer: one line, From / To accounts in the bottom block); bottom block pinned to the page foot (`min-height: 262mm`). Deductions: Pay adds them to Paid With (paid = allocated + deductions); Receive takes them off the bank lines from the last one backwards (received + deductions = allocated), so both totals stay equal as in the legacy Receiving Note (2026-10-21) |
+| Payment Entry | Payment Entry | - | The document as ERP holds it, not the Access note (Bry, 2026-11-04): ERP labels and sections (Payment Type, Account Paid From / To, Paid / Received Amount, Payment References, Payment Deductions or Loss, Advance Taxes and Charges, Total Allocated / Unallocated Amount, In Words); empty sections are left out, a Supplier Invoice No / Exchange Rate column appears only when a row has one. Shares only the header, fonts and the bottom block (Note = `custom_note`, three signature boxes) with the legacy prints. Default Print Format of Payment Entry since 2026-11-04 (on prod the same day, written by REST: Print Format record + the `Payment Entry-main-default_print_format` Property Setter, previous value Payment Note); Payment Note stays in the Print dialog. Rows are built as dicts with `bp_px` and the first row of a section carries its heading and column heading height. Draft / Cancelled shows a Status line in the header. Patch `create_payment_entry_print_format` |
 | Journal Voucher (default) | Journal Entry | - | One layout for every entry: No., Account (+ party), Description, Debit, Credit. The Receiving/Payment Note and Cash Receiving/Payment Note modes were dropped (Bry, 2026-10-21) |
 
 - The two variants of Penerimaan Barang and Mutasi Barang are separate files with the same layout and a
@@ -454,6 +455,18 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
   `doc.insert()`/`.save()`. There's no clean way to store a compound multi-number +
   annotation string in this field — either simplify to one valid number, or add a
   separate free-text custom field if the extra detail must be preserved.
+
+### Previewing a format outside the Desk (2026-11-04)
+
+- All rules in the `.css` files are scoped `.print-format ...`. `frappe.www.printview.get_html_and_style` returns the
+  inner HTML only, without that wrapper, so a preview built from it shows serif text and no borders until it is
+  wrapped in `<div class="print-format">` (`frappe.get_print` already includes it). Not a defect of the format.
+- Chrome headless defaults to Letter with its own margins: add `@page { size: A4; margin: 10mm }` (what the Print
+  Format's margins give in Get PDF) or every sheet spills onto a second page because of `min-height: 262mm`.
+- Prod check without a real print: `GET /api/method/frappe.www.printview.get_html_and_style?doc=...&name=...&print_format=...`
+  (read only), then wrap and print as above. A Print Format that must reach prod without a code deploy: `POST
+  /api/resource/Print Format` with the same fields as `upsert` in `create_do_invoice_print_formats.py`, then `PUT` the
+  `<DocType>-main-default_print_format` Property Setter once the preview is good.
 
 ---
 

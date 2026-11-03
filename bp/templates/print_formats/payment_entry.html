@@ -1,0 +1,234 @@
+{#- "Payment Entry" print format for Payment Entry -- the document as ERP holds it
+    (Bry, 2026-11-04). Unlike "Payment Note" it does not recreate the legacy
+    Access receipt/payment note: the sections, labels and amounts are the Payment
+    Entry's own (Payment Type, Account Paid From / To, Paid / Received Amount,
+    Payment References, Payment Deductions or Loss, Advance Taxes and Charges,
+    Total Allocated / Unallocated Amount, In Words). Only the look of the sheet
+    is shared with the legacy prints: company header, fonts, and the bottom block
+    with the note and the three signature boxes.
+
+    Sections that have no rows are left out. Rows are built first, then
+    bp_paginate (bp/utils/print_layout.py) splits them over A4 sheets: every
+    sheet repeats the header with Page x / N, a table that runs over a page break
+    repeats its column headings, and the summary, note and signatures sit at the
+    bottom of the last sheet. Each row dict carries its height in px (bp_px):
+    17.3 for a one-line row (3 + 14.3 per text line), plus the section heading and
+    column headings on the first row of a section. Re-check page_px / last_page_px
+    after changing fonts, header or footer.
+
+    Pure Jinja/HTML; CSS in payment_entry.css. Installed by
+    bp/patches/v1_0/create_payment_entry_print_format.py. -#}
+
+{#- Company header: the company's "<company>-Office" Address (Bry 2026-11-02, never the
+    preferred shipping / primary address on doc.company_address); fallback doc.company_address if set, else the company's own
+    is_your_company_address Address (most invoices predate company_address
+    being populated) -- built from raw address fields, not address_display,
+    to match the legacy plain-text layout.
+
+    NOTE: uses namespace() because plain {% set %} assignments made inside a
+    {% for %} loop don't propagate back out to the surrounding scope in
+    Jinja2 -- a real footgun if you're used to Python's loop scoping. Any
+    future edit that needs to "find something in a loop and use it after"
+    must follow the same namespace(...) pattern, not a bare {% set %}. -#}
+{% set _addr_ns = namespace(doc=None) %}
+{% set _office_addr = doc.company ~ "-Office" %}
+{% if frappe.db.get_value("Address", _office_addr, "name") %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", _office_addr) %}
+{% elif doc.company_address %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
+{% else %}
+	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
+	{% for _addr_name in _addr_links %}
+		{% if not _addr_ns.doc and frappe.db.get_value("Address", _addr_name, "is_your_company_address") %}
+			{% set _addr_ns.doc = frappe.get_cached_doc("Address", _addr_name) %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+{% set company_address = _addr_ns.doc %}
+{% set _address_parts = [] %}
+{% if company_address %}
+	{% if company_address.address_line1 %}{% set _address_parts = _address_parts + [company_address.address_line1] %}{% endif %}
+	{% if company_address.address_line2 %}{% set _address_parts = _address_parts + [company_address.address_line2] %}{% endif %}
+	{% if company_address.city %}{% set _address_parts = _address_parts + [(company_address.city ~ " " ~ (company_address.pincode or ""))|trim] %}{% endif %}
+	{% if company_address.country %}{% set _address_parts = _address_parts + [company_address.country] %}{% endif %}
+{% endif %}
+{% set company_address_line = _address_parts|join(", ") %}
+{% set _contact_parts = [] %}
+{% if company_address and company_address.phone %}{% set _contact_parts = _contact_parts + ["Tel. : " ~ company_address.phone] %}{% endif %}
+{% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
+{% set company_contact_line = _contact_parts|join(", ") %}
+
+
+{#- printed lines of a text of `n` characters in a column `w` of `tot` width units
+    (A4 body is about 718 px wide, a Tahoma 11px character about 6.6 px) -#}
+{% macro nl(n, w, tot) %}{{ [((n * 6.6) / (718 * w / tot))|round(0, "ceil")|int, 1]|max }}{% endmacro %}
+{% macro money(v) %}{{ frappe.utils.fmt_money(v or 0, precision=2) }}{% endmacro %}
+{% macro dmy(d) %}{{ frappe.utils.formatdate(d, "dd-MMM-yy") if d else "" }}{% endmacro %}
+
+{% set is_receive = doc.payment_type == "Receive" %}
+{% set is_transfer = doc.payment_type == "Internal Transfer" %}
+{% set ccy_co = frappe.db.get_value("Company", doc.company, "default_currency") or "IDR" %}
+{% set ccy_from = doc.paid_from_account_currency or ccy_co %}
+{% set ccy_to = doc.paid_to_account_currency or ccy_co %}
+{#- references are in the currency of the party's account: paid from for Receive, paid to for Pay -#}
+{% set ccy_ref = ccy_from if is_receive else ccy_to %}
+
+{#- ---- information block: two columns of label : value (label, value, is amount) ---- -#}
+{% set info_l = [("Payment Type", doc.payment_type or "", 0)] %}
+{% if doc.mode_of_payment %}{% set info_l = info_l + [("Mode of Payment", doc.mode_of_payment, 0)] %}{% endif %}
+{% if doc.party and not is_transfer %}
+	{% set info_l = info_l + [("Party Type", doc.party_type or "", 0), ("Party", doc.party, 0)] %}
+	{% if doc.party_name and doc.party_name != doc.party %}{% set info_l = info_l + [("Party Name", doc.party_name, 0)] %}{% endif %}
+{% endif %}
+{% if doc.reference_no %}{% set info_l = info_l + [("Cheque/Reference No", doc.reference_no, 0)] %}{% endif %}
+{% if doc.reference_date %}{% set info_l = info_l + [("Cheque/Reference Date", dmy(doc.reference_date), 0)] %}{% endif %}
+{% if doc.bank_account %}{% set info_l = info_l + [("Company Bank Account", doc.bank_account, 0)] %}{% endif %}
+{% if doc.cost_center %}{% set info_l = info_l + [("Cost Center", doc.cost_center, 0)] %}{% endif %}
+{% if doc.project %}{% set info_l = info_l + [("Project", doc.project, 0)] %}{% endif %}
+
+{% set info_r = [("Account Paid From", doc.paid_from or "", 0), ("Account Paid To", doc.paid_to or "", 0),
+	("Paid Amount", ccy_from ~ " " ~ money(doc.paid_amount), 1)] %}
+{% if ccy_from != ccy_to or (doc.source_exchange_rate or 1) != 1 or (doc.target_exchange_rate or 1) != 1 %}
+	{% set info_r = info_r + [("Source Exchange Rate", "%.4f"|format(doc.source_exchange_rate or 1), 1)] %}
+{% endif %}
+{% set info_r = info_r + [("Received Amount", ccy_to ~ " " ~ money(doc.received_amount), 1)] %}
+{% if ccy_from != ccy_to or (doc.source_exchange_rate or 1) != 1 or (doc.target_exchange_rate or 1) != 1 %}
+	{% set info_r = info_r + [("Target Exchange Rate", "%.4f"|format(doc.target_exchange_rate or 1), 1)] %}
+{% endif %}
+
+{#- height of the taller column: 16.3 px per text line, a value wraps after about 28 characters -#}
+{% set _hl = namespace(v=0) %}{% set _hr = namespace(v=0) %}
+{% for _k, _v, _n in info_l %}{% set _hl.v = _hl.v + [((_v|string|length) / 28)|round(0, "ceil")|int, 1]|max %}{% endfor %}
+{% for _k, _v, _n in info_r %}{% set _hr.v = _hr.v + [((_v|string|length) / 28)|round(0, "ceil")|int, 1]|max %}{% endfor %}
+{% set info_px = 20 + 16.3 * [_hl.v, _hr.v]|max %}
+
+{#- ---- tables: columns (k key, label, w width units, cls) ---- -#}
+{#- namespace again: a plain {% set %} inside the loop would not reach the code below -#}
+{% set _has = namespace(bill=false, rate=false) %}
+{% for r in doc.references %}
+	{% if r.bill_no %}{% set _has.bill = true %}{% endif %}
+	{% if (r.exchange_rate or 1) != 1 %}{% set _has.rate = true %}{% endif %}
+{% endfor %}
+{% set has_bill = _has.bill %}
+{% set has_rate = _has.rate %}
+{% set rc = [{"k": "n", "label": "No.", "w": 4, "cls": "ctr"}, {"k": "type", "label": "Type", "w": 12, "cls": "wrap"},
+	{"k": "name", "label": "Name", "w": 15, "cls": "wrap"}] %}
+{% if has_bill %}{% set rc = rc + [{"k": "bill", "label": "Supplier Invoice No", "w": 14, "cls": "wrap"}] %}{% endif %}
+{% set rc = rc + [{"k": "due", "label": "Due Date", "w": 9, "cls": "ctr"}] %}
+{% if has_rate %}{% set rc = rc + [{"k": "rate", "label": "Exchange Rate", "w": 9, "cls": "num"}] %}{% endif %}
+{% set rc = rc + [{"k": "total", "label": "Grand Total", "w": 13, "cls": "num"}, {"k": "out", "label": "Outstanding", "w": 13, "cls": "num"},
+	{"k": "alloc", "label": "Allocated", "w": 13, "cls": "num"}] %}
+{% set dc = [{"k": "n", "label": "No.", "w": 4, "cls": "ctr"}, {"k": "account", "label": "Account", "w": 30, "cls": "wrap"},
+	{"k": "cc", "label": "Cost Center", "w": 22, "cls": "wrap"}, {"k": "desc", "label": "Description", "w": 28, "cls": "wrap"},
+	{"k": "amount", "label": "Amount", "w": 16, "cls": "num"}] %}
+{% set tc = [{"k": "n", "label": "No.", "w": 4, "cls": "ctr"}, {"k": "account", "label": "Account Head", "w": 30, "cls": "wrap"},
+	{"k": "desc", "label": "Description", "w": 24, "cls": "wrap"}, {"k": "ad", "label": "Add / Deduct", "w": 10, "cls": "ctr"},
+	{"k": "rate", "label": "Rate", "w": 8, "cls": "num"}, {"k": "amount", "label": "Tax Amount", "w": 16, "cls": "num"}] %}
+{% set cols = {"ref": rc, "ded": dc, "tax": tc} %}
+{% set tot = {"ref": rc|sum(attribute="w"), "ded": dc|sum(attribute="w"), "tax": tc|sum(attribute="w")} %}
+{% set head_px = {"ref": 29 + (36 if has_bill else 22), "ded": 29 + 22, "tax": 29 + 22} %}
+
+{% set ns = namespace(lines=[{"kind": "info", "bp_px": info_px}]) %}
+
+{% for r in doc.references %}
+	{% set _lines = [nl((r.reference_doctype or "")|length, 12, tot.ref)|int, nl((r.reference_name or "")|length, 15, tot.ref)|int,
+		(nl((r.bill_no or "")|length, 14, tot.ref)|int if has_bill else 1)]|max %}
+	{% set ns.lines = ns.lines + [{"kind": "ref", "head": ("Payment References (" ~ ccy_ref ~ ")") if loop.first else "",
+		"bp_px": 3 + 14.3 * _lines + (head_px.ref if loop.first else 0),
+		"cells": {"n": loop.index, "type": r.reference_doctype or "", "name": r.reference_name or "", "bill": r.bill_no or "",
+			"due": dmy(r.due_date), "rate": "%.4f"|format(r.exchange_rate or 1), "total": money(r.total_amount),
+			"out": money(r.outstanding_amount), "alloc": money(r.allocated_amount)}}] %}
+{% endfor %}
+
+{% set ded_total = namespace(v=0) %}
+{% for d in doc.deductions %}
+	{% set ded_total.v = ded_total.v + (d.amount or 0) %}
+	{% set _lines = [nl((d.account or "")|length, 30, tot.ded)|int, nl((d.cost_center or "")|length, 22, tot.ded)|int,
+		nl((d.description or "")|length, 28, tot.ded)|int]|max %}
+	{% set ns.lines = ns.lines + [{"kind": "ded", "head": ("Payment Deductions or Loss (" ~ ccy_co ~ ")") if loop.first else "",
+		"bp_px": 3 + 14.3 * _lines + (head_px.ded if loop.first else 0),
+		"cells": {"n": loop.index, "account": d.account or "", "cc": d.cost_center or "", "desc": d.description or "",
+			"amount": money(d.amount)}}] %}
+{% endfor %}
+
+{% for t in doc.taxes %}
+	{% set _lines = [nl((t.account_head or "")|length, 30, tot.tax)|int, nl((t.description or "")|length, 24, tot.tax)|int]|max %}
+	{% set ns.lines = ns.lines + [{"kind": "tax", "head": "Advance Taxes and Charges" if loop.first else "",
+		"bp_px": 3 + 14.3 * _lines + (head_px.tax if loop.first else 0),
+		"cells": {"n": loop.index, "account": t.account_head or "", "desc": t.description or "", "ad": t.add_deduct_tax or "",
+			"rate": ("%.2f"|format(t.rate) ~ " %") if t.rate else "", "amount": money(t.tax_amount)}}] %}
+{% endfor %}
+
+{#- ---- bottom block: In Words on the left, allocation summary on the right (label, currency, amount) ---- -#}
+{% set sum_rows = [] %}
+{% if doc.references %}{% set sum_rows = sum_rows + [("Total Allocated Amount", ccy_ref, doc.total_allocated_amount)] %}{% endif %}
+{% if doc.unallocated_amount and not is_transfer %}{% set sum_rows = sum_rows + [("Unallocated Amount", ccy_ref, doc.unallocated_amount)] %}{% endif %}
+{% if doc.total_taxes_and_charges %}{% set sum_rows = sum_rows + [("Total Taxes and Charges", ccy_from, doc.total_taxes_and_charges)] %}{% endif %}
+{% if doc.deductions %}{% set sum_rows = sum_rows + [("Payment Deductions or Loss", ccy_co, ded_total.v)] %}{% endif %}
+{% if doc.difference_amount %}{% set sum_rows = sum_rows + [("Difference Amount", ccy_co, doc.difference_amount)] %}{% endif %}
+{% set words = doc.in_words or doc.base_in_words or "" %}
+{% set _words_px = 14.3 * ([(("In Words : " ~ words)|length / 46)|round(0, "ceil")|int, 1]|max if words else 0) %}
+{% set foot_top_px = [_words_px, 16.3 * (sum_rows|length)]|max + 6 %}
+{% set pages = bp_paginate(ns.lines, page_px=890, last_page_px=780 - foot_top_px) %}
+
+{% for page in pages %}
+<div class="bp-legacy-format bp-note-doc{% if not loop.last %} bp-sheet-break{% endif %}">
+	<div class="bp-main">
+		<div class="bp-hdr">
+			<div class="bp-hdr-left">
+				<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+				<div class="bp-company-addr">{{ company_address_line }}<br>{{ company_contact_line }}</div>
+			</div>
+			<div class="bp-hdr-right">
+				<div class="bp-title">Payment Entry</div>
+				<div class="bp-docno">{{ doc.name }}</div>
+				<table class="bp-dp"><tr><td>Posting Date :</td><td>{{ dmy(doc.posting_date) }}</td></tr>
+				{% if doc.docstatus != 1 %}<tr><td>Status :</td><td>{{ "DRAFT" if doc.docstatus == 0 else "CANCELLED" }}</td></tr>{% endif %}
+				<tr><td>Page :</td><td>{{ loop.index }} / {{ pages|length }}</td></tr></table>
+			</div>
+		</div>
+
+		{% set cur = namespace(kind="", cols=[], tot=1) %}
+		{% for idx, line in page %}
+			{% if line.kind == "info" %}
+			<div class="bp-info">
+				<table class="bp-kv">
+					{% for k, v, num in info_l %}<tr><td class="bp-k">{{ k }}</td><td>:</td><td class="bp-v">{{ v }}</td></tr>{% endfor %}
+				</table>
+				<table class="bp-kv">
+					{% for k, v, num in info_r %}<tr><td class="bp-k">{{ k }}</td><td>:</td><td class="bp-v{% if num %} bp-vnum{% endif %}">{{ v }}</td></tr>{% endfor %}
+				</table>
+			</div>
+			{% else %}
+				{% if cur.kind != line.kind %}
+					{% if cur.kind %}</table>{% endif %}
+					{% if line.head %}<div class="bp-sec">{{ line.head }}</div>{% endif %}
+					{% set cur.kind = line.kind %}{% set cur.cols = cols[line.kind] %}{% set cur.tot = tot[line.kind] %}
+					<table class="items-table">
+						<colgroup>{% for c in cur.cols %}<col style="width: {{ (c.w * 100 / cur.tot)|round(2) }}%">{% endfor %}</colgroup>
+						<thead><tr>{% for c in cur.cols %}<th>{{ c.label }}</th>{% endfor %}</tr></thead>
+				{% endif %}
+				<tbody><tr>{% for c in cur.cols %}<td class="bp-{{ c.cls }}">{{ line.cells[c.k] }}</td>{% endfor %}</tr></tbody>
+			{% endif %}
+		{% endfor %}
+		{% if cur.kind %}</table>{% endif %}
+	</div>
+
+	{% if loop.last %}
+	<div class="bp-foot">
+		<div class="bp-foot-top">
+			<div class="bp-words">{% if words %}<b>In Words</b> : {{ words }}{% endif %}</div>
+			<div class="bp-sum"><table>
+				{% for label, ccy, amount in sum_rows %}
+				<tr><td>{{ label }}</td><td class="bp-tccy">{{ ccy }}</td><td class="bp-num">{{ money(amount) }}</td></tr>
+				{% endfor %}
+			</table></div>
+		</div>
+		<table class="bp-sign-boxes"><tr>
+			<td class="bp-note-box"><b>Note :</b><br>{{ (doc.custom_note or "")|e|replace("\n", "<br>")|safe }}</td>
+			<td>Approved by,</td><td>Prepared by,</td><td>Received by,</td>
+		</tr></table>
+	</div>
+	{% endif %}
+</div>
+{% endfor %}
