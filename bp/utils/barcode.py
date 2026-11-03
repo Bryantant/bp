@@ -1,6 +1,6 @@
 """Code 128 barcode as an SVG data URI, for the Jinja print formats (HT-42).
 
-The Sales Invoice and Delivery Order prints carry the invoice name as a Code 128
+The Sales Invoice and Surat Jalan prints carry the invoice name as a Code 128
 barcode, scanned back in on the Invoice Kembali form. Code 128 (not QR) because
 the scanner is not chosen yet: a 1D USB scanner, a 2D scanner and a phone camera
 all read it. Written here instead of adding python-barcode, which is not in the

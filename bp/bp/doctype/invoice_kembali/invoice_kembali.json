@@ -61,7 +61,7 @@
   },
   {
    "depends_on": "eval:doc.docstatus==0",
-   "description": "Scan the barcode on the Sales Invoice or Delivery Order print, or type the invoice number and press Enter.",
+   "description": "Scan the barcode on the Sales Invoice or Surat Jalan print, or type the invoice number and press Enter.",
    "fieldname": "scan_invoice",
    "fieldtype": "Data",
    "label": "Scan Invoice",

@@ -19,7 +19,7 @@ RETUR_PENJUALAN = {"name": "Retur Penjualan", "template": "retur_penjualan.html"
 
 FORMATS = [
 	{"name": "Invoice", "template": "sales_invoice.html", "style": "sales_invoice.css"},
-	{"name": "Delivery Order", "template": "delivery_order.html", "style": "delivery_order.css"},
+	{"name": "Surat Jalan", "template": "delivery_order.html", "style": "delivery_order.css"},
 	RETUR_PENJUALAN,
 ]
 

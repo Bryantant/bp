@@ -2,7 +2,7 @@
 who took them out to collect payment (HT-42, meeting MULYADI 15 Okt 2026).
 
 Each row is one invoice, added by scanning the Code 128 barcode on the Sales
-Invoice / Delivery Order print (bp/utils/barcode.py) or by typing its number.
+Invoice / Surat Jalan print (bp/utils/barcode.py) or by typing its number.
 Submit marks every invoice as returned (Sales Invoice.bp_invoice_kembali and
 the who/when/which fields); Cancel clears them again. The report "Invoice
 Belum Kembali" lists the invoices not yet marked.

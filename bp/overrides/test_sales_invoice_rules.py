@@ -43,7 +43,7 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		"""Billed from a Surat Jalan: Update Stock off, but it sells goods, so
 		INV- and not the value-only ND- series."""
 		doc = invoice(
-			set_warehouse=None, items=[frappe._dict(delivery_note="SJ-A26100001", warehouse="A - BP")]
+			set_warehouse=None, items=[frappe._dict(delivery_note="DO-A26100001", warehouse="A - BP")]
 		)
 		before_insert(doc)
 		self.assertEqual(doc.update_stock, 0)
@@ -51,7 +51,7 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
 
 	def test_return_keeps_its_update_stock(self):
-		doc = invoice(is_return=1, items=[frappe._dict(delivery_note="SJ-A26100001")])
+		doc = invoice(is_return=1, items=[frappe._dict(delivery_note="DO-A26100001")])
 		before_insert(doc)
 		self.assertEqual(doc.update_stock, 1)
 
