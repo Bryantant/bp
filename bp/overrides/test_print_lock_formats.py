@@ -61,6 +61,43 @@ class TestPrintLockFormats(UnitTestCase):
 			si._gate(_printed_invoice(), None)
 		self.assertEqual(log.call_args[0][2], default)
 
+	@patch(f"{MODULE}.frappe.db.set_value")
+	@patch(f"{MODULE}._log")
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
+	def test_stamp_fields_are_on_the_doc_being_rendered(self, _formats, _log, _set_value):
+		"""Frappe renders the template with the same doc right after before_print, so
+		the first print (no earlier stamp) must already carry its own user and time."""
+		frappe.form_dict.trigger_print = 1
+		doc = frappe._dict(name="SINV-TEST-STAMP", docstatus=1, bp_print_count=0)
+		si._gate(doc, "Invoice")
+		self.assertEqual(doc.bp_last_printed_by, frappe.session.user)
+		self.assertTrue(doc.bp_last_printed_at)
+		self.assertEqual(doc.bp_print_count, 1)
+
+	@patch(f"{MODULE}.frappe.db.set_value")
+	@patch(f"{MODULE}._log")
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
+	def test_background_bulk_print_is_counted_with_its_format(self, _formats, log, set_value):
+		"""The bulk dialog's "Background Print" runs _download_multi_pdf as a job: no
+		trigger_print or cmd, the format only in the job kwargs."""
+		job = frappe._dict(method=si._BULK_PDF_JOB_METHOD, kwargs={"format": "Invoice"})
+		doc = frappe._dict(name="SINV-TEST-JOB", docstatus=1, bp_print_count=0)
+		with patch.object(frappe.local, "job", job, create=True):
+			si.before_print(doc)
+		log.assert_called_once()
+		self.assertEqual(log.call_args[0][2], "Invoice")
+		self.assertEqual(set_value.call_args[0][2]["bp_print_count"], 1)
+
+	@patch(f"{MODULE}.frappe.db.set_value")
+	@patch(f"{MODULE}._log")
+	@patch(f"{MODULE}._locked_formats", return_value={"Invoice"})
+	def test_other_background_jobs_are_not_prints(self, _formats, log, set_value):
+		job = frappe._dict(method="frappe.email.queue.flush", kwargs={})
+		with patch.object(frappe.local, "job", job, create=True):
+			si.before_print(frappe._dict(name="SINV-TEST-JOB2", docstatus=1))
+		log.assert_not_called()
+		set_value.assert_not_called()
+
 	def test_settings_reject_a_non_invoice_format(self):
 		other = frappe.db.get_value("Print Format", {"doc_type": ["!=", "Sales Invoice"]}, "name")
 		if not other:

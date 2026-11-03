@@ -279,6 +279,26 @@ _INTERACTIVE_PRINT_CMDS = {
 	"frappe.utils.print_format.download_multi_pdf",
 }
 
+# The bulk Print dialog's "Background Print" tick runs _download_multi_pdf as a
+# background job: no request, so no cmd/trigger_print in form_dict. The job context
+# (frappe.local.job) carries the method and its kwargs instead.
+_BULK_PDF_JOB_METHOD = "frappe.utils.print_format._download_multi_pdf"
+
+
+def _print_job():
+	"""The running background bulk-PDF job, else None."""
+	job = getattr(frappe.local, "job", None)
+	if job and job.get("method") == _BULK_PDF_JOB_METHOD:
+		return job
+
+
+def _requested_format():
+	"""Print format named by the request, or by the bulk-PDF job's kwargs."""
+	fmt = frappe.form_dict.get("format")
+	if not fmt and (job := _print_job()):
+		fmt = (job.get("kwargs") or {}).get("format")
+	return fmt
+
 
 def _force_commit():
 	"""Commit immediately, bypassing both safeguards that make a plain
@@ -345,23 +365,25 @@ def _gate(doc, print_format):
 	# returns the PDF before ever calling on_print_pdf, so that hook never
 	# fired here and prints were silently never counted.
 	actual = (
-		bool(frappe.form_dict.get("trigger_print")) or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
+		bool(frappe.form_dict.get("trigger_print"))
+		or frappe.form_dict.get("cmd") in _INTERACTIVE_PRINT_CMDS
+		or bool(_print_job())
 	)
 	if not actual:
 		return
 
 	_log(doc, "Printed", print_format)
-	frappe.db.set_value(
-		"Sales Invoice",
-		doc.name,
-		{
-			"bp_print_status": "Printed",
-			"bp_print_count": cint(doc.get("bp_print_count")) + 1,
-			"bp_last_printed_by": frappe.session.user,
-			"bp_last_printed_at": now_datetime(),
-		},
-		update_modified=False,
-	)
+	printed = {
+		"bp_print_status": "Printed",
+		"bp_print_count": cint(doc.get("bp_print_count")) + 1,
+		"bp_last_printed_by": frappe.session.user,
+		"bp_last_printed_at": now_datetime(),
+	}
+	frappe.db.set_value("Sales Invoice", doc.name, printed, update_modified=False)
+	# db.set_value does not touch this in-memory doc, and Frappe renders the template
+	# with it right after before_print: without this the "printed by / at" stamp on
+	# this very print is blank (first print) or shows the previous print (later ones).
+	doc.update(printed)
 	# Download PDF (single or bulk) is a GET request. frappe/app.py's request
 	# teardown rolls back every GET by default (GETs are conventionally
 	# read-only) -- this flag is Frappe's own sanctioned way for a GET handler
@@ -375,7 +397,7 @@ def _gate(doc, print_format):
 def before_print(doc, method=None, print_settings=None):
 	"""doc_events hook — fires on every print/PDF render for a Sales Invoice,
 	regardless of pdf_generator. The only place direct prints are counted; see _gate()."""
-	_gate(doc, frappe.form_dict.get("format"))
+	_gate(doc, _requested_format())
 
 
 def _reset_allowed_roles():
