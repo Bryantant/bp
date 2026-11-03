@@ -36,6 +36,7 @@ const PARTY_LABEL = { sales: __('Customer'), purchase: __('Supplier') };
 // price lists) get DEFAULT_WIDTH.
 const COLUMN_WIDTHS = {
 	item_code: 100,
+	custom_id: 110,
 	brand: 70,
 	date: 105,
 	qty: 85,
@@ -54,6 +55,7 @@ const COLUMN_WIDTHS = {
 };
 const DEFAULT_WIDTH = 90;
 const DESCRIPTION_MIN_WIDTH = 260;
+const SELECTORS_PER_RULE = 500;
 
 bp.Inquiry = class Inquiry {
 	constructor(page) {
@@ -109,6 +111,13 @@ bp.Inquiry = class Inquiry {
 		});
 		this.fields.description = this.page.add_field({
 			fieldtype: 'Data', fieldname: 'description', label: __('Description'),
+		});
+		this.fields.custom_id = this.page.add_field({
+			fieldtype: 'Data', fieldname: 'custom_id', label: __('Item Code'),
+		});
+		this.fields.brand = this.page.add_field({
+			fieldtype: 'MultiSelectList', fieldname: 'brand', label: __('Brand'),
+			get_data: (txt) => frappe.db.get_link_options('Brand', txt),
 		});
 
 		// Second row: filters that only apply to some tabs (see TAB_FILTERS).
@@ -326,10 +335,16 @@ bp.Inquiry = class Inquiry {
 	set_selection(indexes) {
 		this.selected = new Set(indexes);
 		if (!this.$selection_style) return;
-		const css = [...this.selected]
-			.map((i) => `.inquiry-table .dt-row-${i} .dt-cell`)
-			.join(',\n');
-		this.$selection_style.text(css ? `${css} { background-color: var(--inquiry-selected-bg); }` : '');
+		// Chrome stops matching after ~2700 selectors in one rule, so a large selection is
+		// split over several rules (5000 rows in one rule highlighted only the first 2731).
+		const selectors = [...this.selected].map((i) => `.inquiry-table .dt-row-${i} .dt-cell`);
+		const rules = [];
+		for (let i = 0; i < selectors.length; i += SELECTORS_PER_RULE) {
+			rules.push(
+				`${selectors.slice(i, i + SELECTORS_PER_RULE).join(',\n')} { background-color: var(--inquiry-selected-bg); }`
+			);
+		}
+		this.$selection_style.text(rules.join('\n'));
 	}
 
 	// Cmd/Ctrl+C with rows selected copies them; otherwise the datatable copies the focused

@@ -24,7 +24,7 @@
 /* Table body height: the screen minus the filters above and the remark strip
    and item detail below, so all of it fits without scrolling the page. */
 #page-inquiry {
-	--inquiry-body-height: max(230px, calc(100vh - 560px));
+	--inquiry-body-height: max(230px, calc(100vh - 490px));
 	--inquiry-selected-bg: var(--blue-100);
 }
 
