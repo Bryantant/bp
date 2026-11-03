@@ -15,7 +15,7 @@
  ],
  "fields": [
   {
-   "description": "Di Excel, blok baris data (kolom: Invoice Number, Invoice Date, CustomerID, Net Amount; baris judul boleh ikut atau tidak), copy, lalu klik tombol ini.",
+   "description": "Di Excel, blok baris data (kolom: Salesman, Invoice Number, Invoice Date, CustomerID, Net Amount; baris judul boleh ikut atau tidak, Salesman boleh kosong), copy, lalu klik tombol ini.",
    "fieldname": "paste_button",
    "fieldtype": "Button",
    "label": "Paste dari Excel"

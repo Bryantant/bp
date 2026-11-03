@@ -6,6 +6,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "salesman",
   "nd_invoice_no",
   "invoice_date",
   "cust_code_nd",
@@ -18,6 +19,15 @@
  "fields": [
   {
    "columns": 2,
+   "description": "Optional. First column of the pasted Excel rows; matched to a Sales Person by name. Goes to Sales Person on the Sales Invoice.",
+   "fieldname": "salesman",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Salesman",
+   "options": "Sales Person"
+  },
+  {
+   "columns": 2,
    "description": "\"Invoice Number\" from the ND System's invoice export.",
    "fieldname": "nd_invoice_no",
    "fieldtype": "Data",
@@ -26,7 +36,7 @@
    "reqd": 1
   },
   {
-   "columns": 2,
+   "columns": 1,
    "description": "\"CustomerID\" from the ND System's invoice export. Matched against Customer.custom_nd_code.",
    "fieldname": "cust_code_nd",
    "fieldtype": "Data",
@@ -74,7 +84,8 @@
    "in_list_view": 1,
    "label": "Resolved Customer",
    "options": "Customer",
-   "read_only": 1
+   "read_only": 1,
+   "columns": 1
   },
   {
    "fieldname": "sales_invoice",

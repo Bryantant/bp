@@ -157,6 +157,31 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		batch.cancel()
 		self.assertEqual(frappe.db.get_value("Sales Invoice", si.name, "docstatus"), 2)
 
+	def test_submit_sets_sales_person_from_salesman(self):
+		person = frappe.db.get_value("Sales Person", {"enabled": 1, "is_group": 0}, "name")
+		if not person:
+			self.skipTest("needs an enabled Sales Person")
+		nd_code = frappe.db.get_value("Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, "custom_nd_code")
+		batch = frappe.get_doc(
+			{
+				"doctype": "Import ND Invoice",
+				"rows": [
+					{
+						"salesman": person,
+						"nd_invoice_no": "TEST-ND-E2E-SM",
+						"cust_code_nd": nd_code,
+						"invoice_date": frappe.utils.today(),
+						"amount": 5000,
+					}
+				],
+			}
+		).insert(ignore_permissions=True)
+		batch.submit()
+
+		si = frappe.get_doc("Sales Invoice", batch.rows[0].sales_invoice)
+		self.assertEqual(si.bp_sales_person, person)
+		self.assertEqual([t.sales_person for t in si.sales_team], [person])
+
 	def test_submit_blocked_when_nd_number_is_taken_as_invoice_name(self):
 		taken = frappe.db.get_value("Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name")
 		if not taken:
@@ -241,15 +266,46 @@ class TestPasteFromExcel(FrappeTestCase):
 			],
 		)
 
-	def test_paste_without_header_uses_the_nd_column_order(self):
+	def test_paste_without_header_uses_salesman_then_the_nd_column_order(self):
 		result = parse_pasted(
-			"I261000444\t17/10/2026\t17CDFN1003\t1000\nSubtotal (1)\t\t\t1000\n\t\t\t\nI261000435\t17/10/2026\t17CDDR1004\t5"
+			"\tI261000444\t17/10/2026\t17CDFN1003\t1000\n\tSubtotal (1)\t\t\t1000\n\t\t\t\t\n\tI261000435\t17/10/2026\t17CDDR1004\t5"
 		)
 		self.assertEqual(result["errors"], [])
 		self.assertEqual(
 			[(r["nd_invoice_no"], r["cust_code_nd"], r["invoice_date"], r["amount"]) for r in result["rows"]],
 			[("I261000444", "17CDFN1003", "2026-10-17", 1000), ("I261000435", "17CDDR1004", "2026-10-17", 5)],
 		)
+
+	def test_paste_salesman_first_column_without_header(self):
+		person = frappe.db.get_value("Sales Person", {"enabled": 1, "is_group": 0}, "name")
+		if not person:
+			self.skipTest("needs an enabled Sales Person")
+		result = parse_pasted(
+			f"{person.lower()}\tI261000444\t17/10/2026\t17CDFN1003\t1000\n\tI261000435\t17/10/2026\t17CDDR1004\t5"
+		)
+		self.assertEqual(result["errors"], [])
+		self.assertEqual(
+			[(r["salesman"], r["nd_invoice_no"], r["amount"]) for r in result["rows"]],
+			[(person, "I261000444", 1000), (None, "I261000435", 5)],
+		)
+
+	def test_paste_salesman_in_any_column_with_header_and_optional(self):
+		person = frappe.db.get_value("Sales Person", {"enabled": 1, "is_group": 0}, "name")
+		if not person:
+			self.skipTest("needs an enabled Sales Person")
+		result = parse_pasted(
+			f"Invoice Number\tInvoice Date\tCustomerID\tNet Amount\tSalesman\nI1\t2026-10-17\tC1\t10\t{person}"
+		)
+		self.assertEqual(result["rows"][0]["salesman"], person)
+		# header without Salesman is still accepted
+		result = parse_pasted("Invoice Number\tInvoice Date\tCustomerID\tNet Amount\nI1\t2026-10-17\tC1\t10")
+		self.assertEqual(result["errors"], [])
+		self.assertFalse(result["rows"][0]["salesman"])
+
+	def test_paste_unknown_salesman_is_reported_and_row_skipped(self):
+		result = parse_pasted("NO-SUCH-SALESMAN-XYZ\tI1\t2026-10-17\tC1\t10")
+		self.assertEqual(result["rows"], [])
+		self.assertIn("NO-SUCH-SALESMAN-XYZ", result["errors"][0])
 
 	def test_paste_with_incomplete_header_is_refused(self):
 		self.assertRaises(

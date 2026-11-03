@@ -15,9 +15,11 @@ The batch itself keeps its own INDI-YYYY-##### name.
 Each batch row becomes a Sales Invoice that is submitted right away, with Update Stock off
 (Bry 2026-10-25).
 
-ND invoices carry no salesperson, as in the old Access tool (Bry 2026-10-17), and
-the placeholder item is a non-stock item, so they move no stock (Bry 2026-10-19):
-the batch has no Salesman or Warehouse fields (removed 2026-10-24).
+The ND export carries no salesperson (as in the old Access tool, Bry 2026-10-17), so a
+Salesman column is added by hand as the first column of the pasted rows (Bry 2026-11-03).
+It is optional, matched to a Sales Person by name, and set as Sales Person on the Sales
+Invoice. The placeholder item is a non-stock item, so the invoices move no stock
+(Bry 2026-10-19): the batch has no Warehouse field (removed 2026-10-24).
 
 Rows come in by copy-paste (Bry 2026-10-23, replaces the Excel file upload):
 the user selects the ND export rows in Excel (header row optional), copies, and
@@ -26,10 +28,11 @@ to parse_pasted(). The ND System's export (InvND) uses column headers that
 don't match Frappe field-label conventions, so COLUMN_MAP is hardcoded rather
 than left to generic column matching, matched case-insensitively ("CustomerID"
 vs "CustomerId"), in any column order, extra columns ignored; the report's blank
-lines and its Subtotal / Report Total lines are skipped without a message. Only 4 columns are
-read (Invoice Number, Invoice Date, CustomerID, Net Amount) -- Cust Code and
+lines and its Subtotal / Report Total lines are skipped without a message. Only 5 columns are
+read (Salesman, Invoice Number, Invoice Date, CustomerID, Net Amount) -- Cust Code and
 Customer Name are derived from the matched Customer record in
-resolve_customers().
+resolve_customers(). Without a header row the columns are taken in that order; with one,
+Salesman may be left out (the rows then get no salesperson).
 
 Copied text carries what Excel *displays*, which follows the PC's locale: the
 ND export's date cells use Excel's built-in short date, so the same file pastes
@@ -60,15 +63,38 @@ from frappe.utils import flt
 
 # Headers as the ND export writes them; COLUMN_MAP (matched case-insensitively) is built from them.
 TEMPLATE_COLUMNS = [
+	("Salesman", "salesman"),
 	("Invoice Number", "nd_invoice_no"),
 	("Invoice Date", "invoice_date"),
 	("CustomerID", "cust_code_nd"),
 	("Net Amount", "amount"),
 ]
 COLUMN_MAP = {header.lower(): fieldname for header, fieldname in TEMPLATE_COLUMNS}
+# Not required in a pasted header row: ND invoices carry no salesperson.
+OPTIONAL_COLUMNS = {"salesman"}
 # The ND report groups invoices and closes each group with "Subtotal (5)" and the report with
 # "Report Total" in the Invoice Number column; those lines are not invoices.
 SUMMARY_LINE = re.compile(r"^(sub\s*total|report\s+total|grand\s+total)\b", re.IGNORECASE)
+
+
+def _resolve_salesman_map(names):
+	"""{pasted text (lowercase): Sales Person id} for the enabled, non-group Sales Persons.
+
+	Matched on the Sales Person id or its name, case-insensitively.
+	"""
+	wanted = {n.strip().lower() for n in names if n and n.strip()}
+	if not wanted:
+		return {}
+	found = {}
+	for person in frappe.get_all(
+		"Sales Person",
+		filters={"enabled": 1, "is_group": 0},
+		fields=["name", "sales_person_name"],
+	):
+		for key in (person.name, person.sales_person_name):
+			if key and key.strip().lower() in wanted:
+				found[key.strip().lower()] = person.name
+	return found
 
 
 def _resolve_customer_map(cust_code_nd_values):
@@ -179,6 +205,8 @@ class ImportNDInvoice(Document):
 			# ND invoices move no stock (the placeholder is non-stock); never let a default turn it on
 			si.update_stock = 0
 			si.custom_nd_invoice_no = row.nd_invoice_no
+			# optional; the Sales Invoice validate hook builds the Sales Team from it
+			si.bp_sales_person = row.salesman or None
 			si.append(
 				"items",
 				{
@@ -342,22 +370,33 @@ def parse_pasted(text):
 
 	if column_index:
 		# a header row came along; it may be in any column order
-		missing = [header for header, fieldname in TEMPLATE_COLUMNS if fieldname not in column_index]
+		missing = [
+			header
+			for header, fieldname in TEMPLATE_COLUMNS
+			if fieldname not in column_index and fieldname not in OPTIONAL_COLUMNS
+		]
 		if missing:
 			frappe.throw(
-				_("The copied header row has no: {0}. Copy again with all four columns.").format(
+				_("The copied header row has no: {0}. Copy again with all the columns.").format(
 					", ".join(missing)
 				)
 			)
 		data_lines = table[1:]
 	else:
-		# no header row (data rows only): the ND report's own column order
+		# no header row (data rows only): Salesman first, then the ND report's own column order
 		column_index = {fieldname: i for i, (_header, fieldname) in enumerate(TEMPLATE_COLUMNS)}
 		data_lines = table
+
+	salesmen = _resolve_salesman_map(
+		cells[column_index["salesman"]].strip()
+		for _no, cells in data_lines
+		if "salesman" in column_index and column_index["salesman"] < len(cells)
+	)
 
 	raw, errors = [], []
 	for line_no, cells in data_lines:
 		values = {f: (cells[i].strip() if i < len(cells) else "") for f, i in column_index.items()}
+		values.setdefault("salesman", "")
 		if not any(values.values()) or SUMMARY_LINE.match(values["nd_invoice_no"]):
 			continue
 		if not values["nd_invoice_no"]:
@@ -372,6 +411,14 @@ def parse_pasted(text):
 	parsed = []
 	for (line_no, values), invoice_date in zip(raw, dates, strict=True):
 		amount = parse_amount(values["amount"])
+		salesman = salesmen.get(values["salesman"].lower()) if values["salesman"] else None
+		if values["salesman"] and not salesman:
+			errors.append(
+				_("Line {0} ({1}): Salesman {2} is not an enabled Sales Person").format(
+					line_no, values["nd_invoice_no"], values["salesman"]
+				)
+			)
+			continue
 		if not invoice_date:
 			errors.append(
 				_("Line {0} ({1}): Invoice Date {2} not recognised").format(
@@ -388,6 +435,7 @@ def parse_pasted(text):
 			continue
 		parsed.append(
 			{
+				"salesman": salesman,
 				"nd_invoice_no": values["nd_invoice_no"],
 				"cust_code_nd": values["cust_code_nd"],
 				"invoice_date": invoice_date.isoformat(),

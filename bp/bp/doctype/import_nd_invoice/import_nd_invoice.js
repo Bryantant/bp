@@ -37,7 +37,7 @@ bp.import_sales_invoice = {
 					fieldtype: "Long Text",
 					label: __("Data"),
 					description: __(
-						"Copy rows in Excel (columns: Invoice Number, Invoice Date, CustomerID, Net Amount; the header row is optional), then paste here with Ctrl+V or Cmd+V."
+						"Copy rows in Excel (columns: Salesman, Invoice Number, Invoice Date, CustomerID, Net Amount; the header row is optional, and Salesman may be left empty), then paste here with Ctrl+V or Cmd+V."
 					),
 				},
 			],
