@@ -24,11 +24,18 @@ class TestPrintLayout(unittest.TestCase):
 		self.assertEqual(_numbers(pages), [[1, 2, 3]])
 
 	def test_full_pages_then_last_page_with_room_for_totals(self):
-		# two-line rows are 5 + 2 x 14.3 = 33.6 px: 8 per full page, 3 with the totals
+		# two-line rows are 5 + 2 x 14.3 = 33.6 px: 8 per full page; 4 left is too much with the totals,
+		# so only the last line moves on
 		pages = bp_paginate(_rows(*["A\nB"] * 20), page_px=285, last_page_px=130)
-		self.assertEqual([len(p) for p in pages], [8, 8, 1, 3])
+		self.assertEqual([len(p) for p in pages], [8, 8, 3, 1])
 		self.assertEqual(_numbers(pages)[0][0], 1)
 		self.assertEqual(_numbers(pages)[-1][-1], 20)
+
+	def test_first_sheet_is_filled_before_the_totals_sheet(self):
+		# INV-C26110001 (Bry 2026-11-02): 139.4 px of lines, 130 px with the totals; printed as 1 + 4 before
+		rows = [{"bp_px": px} for px in (19.3, 33.6, 33.6, 19.3, 33.6)]
+		pages = bp_paginate(rows, page_px=285, last_page_px=130)
+		self.assertEqual(_numbers(pages), [[1, 2, 3, 4], [5]])
 
 	def test_last_page_that_fits_is_kept(self):
 		pages = bp_paginate(_rows(*["A\nB"] * 11), page_px=285, last_page_px=130)

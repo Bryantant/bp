@@ -1,8 +1,8 @@
-{#- "Surat Jalan Sementara" print format for Delivery Note -- recreating the
+{#- "Delivery Order" print format for Delivery Note (named "Surat Jalan Sementara" until 2026-11-03) -- recreating the
     legacy Access Surat Jalan Sementara print (report PrtDOSForm on form FmDOCon,
     Bry 2026-10-19): same paper and layout family as the Sales Invoice
-    "Delivery Order" print (delivery_order.html), without prices or barcode.
-    Right block as on the old print: No. SJ (the document name, SJ-...), No. PO,
+    "Surat Jalan" print (delivery_order.html), without prices or barcode.
+    Right block as on the old print: No. DO (the document name, DO-...), No. PO,
     Date, Order By (custom_order_by, "Pemesan"), Memo.
 
     Pure Jinja/HTML (no custom Python), so it can be tweaked in the Print
@@ -10,7 +10,8 @@
     surat_jalan_sementara.css. Installed by
     bp/patches/v1_0/create_surat_jalan_sementara_print_format.py. -#}
 
-{#- Company header: doc.company_address if set, else the company's own
+{#- Company header: the company's "<company>-Office" Address (Bry 2026-11-02, never the
+    preferred shipping / primary address on doc.company_address); fallback doc.company_address if set, else the company's own
     is_your_company_address Address (most invoices predate company_address
     being populated) -- built from raw address fields, not address_display,
     to match the legacy plain-text layout.
@@ -21,7 +22,10 @@
     future edit that needs to "find something in a loop and use it after"
     must follow the same namespace(...) pattern, not a bare {% set %}. -#}
 {% set _addr_ns = namespace(doc=None) %}
-{% if doc.company_address %}
+{% set _office_addr = doc.company ~ "-Office" %}
+{% if frappe.db.get_value("Address", _office_addr, "name") %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", _office_addr) %}
+{% elif doc.company_address %}
 	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
 {% else %}
 	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
@@ -135,9 +139,9 @@
 				</div>
 			</div>
 			<div class="bp-right">
-				<div class="bp-doc-heading">SURAT JALAN SEMENTARA</div>
+				<div class="bp-doc-heading">DELIVERY ORDER</div>
 				<table class="bp-info">
-					<tr><td class="bp-info-label"><b>No. SJ</b></td><td><b>: {{ doc.name }}</b></td></tr>
+					<tr><td class="bp-info-label"><b>No. DO</b></td><td><b>: {{ doc.name }}</b></td></tr>
 					<tr><td class="bp-info-label">No. PO</td><td>: {{ doc.po_no or "" }}</td></tr>
 					<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.posting_date, "dd-MMM-yy") }}</td></tr>
 					<tr><td class="bp-info-label">Order By</td><td>: {{ doc.custom_order_by or "" }}</td></tr>

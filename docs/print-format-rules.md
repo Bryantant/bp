@@ -146,6 +146,15 @@ trial-and-error:
 ## 2. Formatting Rules & Constraints
 
 ### Global
+- Names of the two goods-out prints (Bry 2026-11-03, swapped by `swap_surat_jalan_delivery_order_names`): the
+  no-price Sales Invoice print (`delivery_order.html`) is **"Surat Jalan"**; the Delivery Note print
+  (`surat_jalan_sementara.html`) is **"Delivery Order"**. Use `SPECS` in that patch to refresh them from the templates.
+- Company header address on every custom print format is the Address named
+  `<company>-Office` (`PT. Bestindo Persada-Office`), never the document's
+  `company_address` (ERPNext fills that with the preferred shipping / primary address).
+  `doc.company_address` is only a fallback when the Office address does not exist
+  (Bry 2026-11-02). The Purchase Order "Send To" line is a different thing and still
+  uses the document's `shipping_address`.
 - Every rule that styles a generic tag we also use (`table`, `th`, `td`) — not just
   our own `bp-`/panel class names — must be written at least as specific as
   `.print-format th`/`.print-format td`, and must carry `!important` if the property
@@ -301,8 +310,12 @@ installed by `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`.
   in on the Company record — this print format doesn't fabricate default text for it.
 - The bottom-right "printed by / at" stamp uses the existing print-lock audit fields
   (`bp_last_printed_by` / `bp_last_printed_at`) — inline Jinja, the `print_stamp`
-  block using `frappe.get_fullname` + `frappe.utils.format_datetime` — blank until the
-  invoice has actually been printed once. A warehouse-queue print sets both fields to
+  block using `frappe.get_fullname` + `frappe.utils.format_datetime`. `_gate` also
+  writes the fields onto the doc being rendered, so a counted print (button, Download
+  PDF, bulk incl. "Background Print") carries its own user and time, like the legacy
+  `CurrentUser() & Date() & Time()` box. A render that is not logged (preview, email,
+  a format outside BP Settings > Warehouse Print Formats) with no earlier print shows
+  the current user and time. A warehouse-queue print sets both fields to
   the warehouse admin and the current time just before rendering, so the warehouse
   copy carries its own printer and time. Since direct printing is never blocked, the
   stamp can be previewed on any printed invoice.
@@ -331,6 +344,17 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
 - **Description on one row (Bry, 2026-10-21):** Purchase Order, Penerimaan Barang (+ Harga) and Mutasi Barang
   (+ Harga) print DESCRIPTION through `bp_item_line` like the Sales Invoice (see "One row per line"): body cells
   `nowrap`, ellipsis when too long; `bp_paginate(..., one_line=True)` counts each line as one row.
+- **Penerimaan Barang (+ Harga), Bry 2026-11-04:** the `Lokasi` value prints as `Warehouse <code>` (`Warehouse A`).
+  Note, totals and signatures sit at the bottom of the last sheet, as on the legacy print: the last `.bp-legacy-format`
+  gets `bp-sheet-last` (flex column, `min-height: 262mm`) and the footer + signature block are wrapped in `.bp-bottom`
+  (`margin-top: auto`). 262 mm = A4 297 mm - 10 mm margins x 2 - 15 mm; 270 mm already spilled the name under the
+  signature onto a second page (Chrome PDF, margins 10 mm). Re-check the page count after changing margins or fonts.
+  The table's closing rule on the last sheet is the top border of `.bp-bottom` (full width, above Note), not a line
+  under the last row; earlier sheets keep the line under their last row.
+  **On prod since 2026-11-04** (script `bp-dev/scripts/2026-11-04-push-penerimaan-barang-print-to-prod.py`, backup
+  `prod_print_backup_20261104_*.json`), but prod's copy is NOT the repo copy: prod still has the `item_desc` macro
+  (multi-line description, `chars_per_line`) and the old company address; the repo has `bp_item_line` (one row) and the
+  `-Office` address, not shipped yet. Only the two changes above were added to prod's own html/css.
 
 ## 3. Technical Lessons
 
@@ -481,3 +505,23 @@ being documented as *newly confirmed*; project quirks go in §3 instead.
   Each is a JSON fixture — the template is in its `html` key, styles inline in a
   `<style>` block within that same HTML (Print Format's separate `css` field is often
   left empty on these, styling is done inline instead).
+
+## Quotation (A4, 2026-10-30)
+
+- Print format **Quotation** on doctype Quotation, rebuilt from the legacy quotation program (`HicomQuo.mdb`, report
+  `PrtQuotForm`, front-end `Hicom Access/Hicom/BP/BPBatam`; still in daily use: 3,612 quotations, last 30 Oct 2026).
+  Files `bp/templates/print_formats/quotation.{html,css}`, created by `bp/patches/v1_0/create_quotation_print_format.py`
+  (A4 pages drawn by the template like Purchase Order: header and Page x / N on every sheet, totals, note and
+  signatures on the last).
+- Legacy field to Quotation: F O B = `incoterm` + `named_place`; Payment = `payment_terms_template`; Validity =
+  `valid_till` printed as days from the date plus the date; Attn = `contact_display`; Telp / Fax = `contact_mobile`
+  or the customer address phone / fax; DISC = gross minus amount per line; offered by = `owner` name and the user's
+  `mobile_no` (legacy OffName / OffHP / OffTitle; no title). The legacy DELIVERY column (QuotationDt.Delivery,
+  17% of lines filled) is left out (Bry 2026-10-30). The format hides the Print / Get PDF banner of the print page
+  (`.action-banner, .print-hide { display: none }`, not only in @media print). Customer, Attn, Telp and Fax are
+  label | colon | value cells so the colons line up.
+- Closing note: the document's Terms, except when it is the company's default selling terms (that is the invoice bank
+  account note); then the legacy sentence "We hope that the above price will meet to your requirement ...".
+- Description lines: item name, then brand/model; words made only of "-" or "=" (legacy placeholders) are dropped.
+  `striptags` squeezes white space, so line ends are marked with `|||` before it.
+- Test PDFs: `bp-dev/print-test/2026-10-30-quotation-*.pdf` (1 sheet, and 34 lines over 3 sheets).

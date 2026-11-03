@@ -8,7 +8,8 @@
     Pure Jinja/HTML; CSS in journal_voucher.css (same look as payment_note.css).
     Installed by bp/patches/v1_0/create_document_print_formats.py. -#}
 
-{#- Company header: doc.company_address if set, else the company's own
+{#- Company header: the company's "<company>-Office" Address (Bry 2026-11-02, never the
+    preferred shipping / primary address on doc.company_address); fallback doc.company_address if set, else the company's own
     is_your_company_address Address (most invoices predate company_address
     being populated) -- built from raw address fields, not address_display,
     to match the legacy plain-text layout.
@@ -19,7 +20,10 @@
     future edit that needs to "find something in a loop and use it after"
     must follow the same namespace(...) pattern, not a bare {% set %}. -#}
 {% set _addr_ns = namespace(doc=None) %}
-{% if doc.company_address %}
+{% set _office_addr = doc.company ~ "-Office" %}
+{% if frappe.db.get_value("Address", _office_addr, "name") %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", _office_addr) %}
+{% elif doc.company_address %}
 	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
 {% else %}
 	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}

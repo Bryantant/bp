@@ -1,5 +1,5 @@
 """Split invoice lines over 9.5 x 5.5 in continuous-form pages (Sales Invoice
-and Delivery Order prints, Bry 2026-10-17).
+and Surat Jalan prints, Bry 2026-10-17).
 
 The legacy Access print repeated the full header on every half page and put
 the totals and signatures after the last line. Chrome does not repeat a table
@@ -82,17 +82,11 @@ def bp_paginate(
 		used += entry[2]
 	pages.append(current)
 
-	# The last page also carries the totals: move its tail to a new page when they do not fit.
+	# The last page also carries the totals: when they do not fit, only its last line moves to a new page, so the
+	# pages before it stay full (Bry 2026-11-02: 5 lines printed as 1 + 4, legacy fills the first sheet first).
 	last = pages[-1]
 	if sum(e[2] for e in last) > last_page_px and len(last) > 1:
-		tail, used = [], 0
-		while last and (not tail or used + last[-1][2] <= last_page_px):
-			used += last[-1][2]
-			tail.insert(0, last.pop())
-		if last:
-			pages.append(tail)
-		else:
-			pages[-1] = tail
+		pages.append([last.pop()])
 	# A single line too tall to share a page with the totals: totals get a sheet of their own.
 	if sum(e[2] for e in pages[-1]) > last_page_px:
 		pages.append([])

@@ -9,7 +9,8 @@
 
     Installed by bp/patches/v1_0/create_do_invoice_print_formats.py. -#}
 
-{#- Company header: doc.company_address if set, else the company's own
+{#- Company header: the company's "<company>-Office" Address (Bry 2026-11-02, never the
+    preferred shipping / primary address on doc.company_address); fallback doc.company_address if set, else the company's own
     is_your_company_address Address (most invoices predate company_address
     being populated) -- built from raw address fields, not address_display,
     to match the legacy plain-text layout.
@@ -20,7 +21,10 @@
     future edit that needs to "find something in a loop and use it after"
     must follow the same namespace(...) pattern, not a bare {% set %}. -#}
 {% set _addr_ns = namespace(doc=None) %}
-{% if doc.company_address %}
+{% set _office_addr = doc.company ~ "-Office" %}
+{% if frappe.db.get_value("Address", _office_addr, "name") %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", _office_addr) %}
+{% elif doc.company_address %}
 	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
 {% else %}
 	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
@@ -59,14 +63,17 @@
     ERPNext fills "No Remarks" when it is left empty: not printed. -#}
 {% set return_note = doc.remarks if doc.remarks and doc.remarks != "No Remarks" else "" %}
 
-{#- Bottom-right "printed by / at" stamp -- blank until the invoice has
-    actually been printed once (bp_last_printed_by/at, set by
-    bp/overrides/sales_invoice.py's print-lock gate). -#}
+{#- Bottom-right "printed by / at" stamp -- last logged print (bp_last_printed_by/at,
+    set by bp/overrides/sales_invoice.py's print-lock gate, also for the print itself). -#}
 {% set print_stamp = "" %}
 {% if doc.bp_last_printed_at %}
 	{% set _stamp_name = frappe.get_fullname(doc.bp_last_printed_by) if doc.bp_last_printed_by else "" %}
 	{% set _stamp_when = frappe.utils.format_datetime(doc.bp_last_printed_at, "M/d/yyyy h:mm:ss a") %}
 	{% set print_stamp = (_stamp_name ~ " " ~ _stamp_when)|trim %}
+{% else %}
+	{#- Not logged (preview, email, a format outside the print log): like the legacy
+	    CurrentUser() & Date() & Time() box, show who renders it and when. -#}
+	{% set print_stamp = (frappe.get_fullname(frappe.session.user) ~ " " ~ frappe.utils.format_datetime(frappe.utils.now_datetime(), "M/d/yyyy h:mm:ss a"))|trim %}
 {% endif %}
 
 {#- Document number as named (SR-A26100001; older returns SRA26090001). -#}

@@ -1,0 +1,166 @@
+{#- "Quotation" print format -- recreates the legacy Access quotation (HicomQuo.mdb, report PrtQuotForm):
+    company block, QUOTATION with No / Date / F O B / Payment / Validity, customer with Attn / Telp / Fax,
+    "We are pleased to quote you as follows :", lines (qty, currency, price, discount, amount),
+    Total, closing note, Customer Confirmation and the offering person. A4. Pure Jinja/HTML; CSS in
+    quotation.css. Installed by bp/patches/v1_0/create_quotation_print_format.py.
+
+    Legacy field -> Quotation: FOB = incoterm + named_place; Payment = payment_terms_template; Validity =
+    valid_till (shown as days from the date, then the date); Attn = contact_display; Telp / Fax = contact
+    mobile or the customer address phone / fax; Offered by = the user who owns the document (name, mobile). The legacy DELIVERY column
+    (QuotationDt.Delivery) is left out (Bry 2026-10-30). -#}
+{#- Company header: the company's "<company>-Office" Address (Bry 2026-11-02, never the
+    preferred shipping / primary address on doc.company_address); fallback doc.company_address if set, else the company's own
+    is_your_company_address Address (most invoices predate company_address
+    being populated) -- built from raw address fields, not address_display,
+    to match the legacy plain-text layout.
+
+    NOTE: uses namespace() because plain {% set %} assignments made inside a
+    {% for %} loop don't propagate back out to the surrounding scope in
+    Jinja2 -- a real footgun if you're used to Python's loop scoping. Any
+    future edit that needs to "find something in a loop and use it after"
+    must follow the same namespace(...) pattern, not a bare {% set %}. -#}
+{% set _addr_ns = namespace(doc=None) %}
+{% set _office_addr = doc.company ~ "-Office" %}
+{% if frappe.db.get_value("Address", _office_addr, "name") %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", _office_addr) %}
+{% elif doc.company_address %}
+	{% set _addr_ns.doc = frappe.get_cached_doc("Address", doc.company_address) %}
+{% else %}
+	{% set _addr_links = frappe.get_all("Dynamic Link", filters={"link_doctype": "Company", "link_name": doc.company, "parenttype": "Address"}, pluck="parent") %}
+	{% for _addr_name in _addr_links %}
+		{% if not _addr_ns.doc and frappe.db.get_value("Address", _addr_name, "is_your_company_address") %}
+			{% set _addr_ns.doc = frappe.get_cached_doc("Address", _addr_name) %}
+		{% endif %}
+	{% endfor %}
+{% endif %}
+{% set company_address = _addr_ns.doc %}
+{% set _address_parts = [] %}
+{% if company_address %}
+	{% if company_address.address_line1 %}{% set _address_parts = _address_parts + [company_address.address_line1] %}{% endif %}
+	{% if company_address.address_line2 %}{% set _address_parts = _address_parts + [company_address.address_line2] %}{% endif %}
+	{% if company_address.city %}{% set _address_parts = _address_parts + [(company_address.city ~ " " ~ (company_address.pincode or ""))|trim] %}{% endif %}
+	{% if company_address.country %}{% set _address_parts = _address_parts + [company_address.country] %}{% endif %}
+{% endif %}
+{% set company_address_line = _address_parts|join(", ") %}
+{% set _contact_parts = [] %}
+{% if company_address and company_address.phone %}{% set _contact_parts = _contact_parts + ["Tel. : " ~ company_address.phone] %}{% endif %}
+{% if company_address and company_address.fax %}{% set _contact_parts = _contact_parts + ["Fax : " ~ company_address.fax] %}{% endif %}
+{% set company_contact_line = _contact_parts|join(", ") %}
+
+{#- Item description: line 1 item name, line 2 brand/model, from the description field (HTML from the
+    editor, or plain text with a newline). Line ends are marked with ||| first because striptags squeezes white space. Legacy placeholder words made only of "-" or "=" are dropped. -#}
+{% macro item_desc(row) -%}
+	{%- set _d = (row.description or row.item_name or "")|replace("\n", "|||")|replace("</p>", "|||")|replace("</div>", "|||")|replace("<br>", "|||")|replace("<br/>", "|||")|replace("<br />", "|||")|striptags|replace("&nbsp;", " ") -%}
+	{%- for _p in _d.split("|||") -%}
+		{%- set _w = namespace(words=[]) -%}
+		{%- for _x in _p.split() if (_x|replace("-", "")|replace("=", "")) -%}{%- set _w.words = _w.words + [_x] -%}{%- endfor -%}
+		{%- if _w.words -%}<div>{{ _w.words|join(" ")|e }}</div>{%- endif -%}
+	{%- endfor -%}
+{%- endmacro %}
+
+{% set _cust_addr = frappe.get_cached_doc("Address", doc.customer_address) if doc.customer_address else None %}
+{% set _party_code = doc.party_name if doc.quotation_to == "Customer" else "" %}
+{% set _telp = doc.contact_mobile or (_cust_addr.phone if _cust_addr else "") or "" %}
+{% set _fax = (_cust_addr.fax if _cust_addr else "") or "" %}
+{% set _fob = ((doc.incoterm or "") ~ " " ~ (doc.named_place or ""))|trim %}
+{% set _validity = "" %}
+{% if doc.valid_till %}
+	{% set _days = frappe.utils.date_diff(doc.valid_till, doc.transaction_date) %}
+	{% set _validity = _days ~ " day(s) (" ~ frappe.utils.formatdate(doc.valid_till, "dd-MMM-yy") ~ ")" %}
+{% endif %}
+
+{#- Closing note: the document's own Terms and Conditions, but not the company's default selling terms
+    (that is the bank account note of the invoices); then the legacy default sentence. -#}
+{% set _default_terms = frappe.db.get_value("Company", doc.company, "default_selling_terms") if doc.company else None %}
+{% set quote_note = doc.terms or "" %}
+{% if quote_note and _default_terms and doc.tc_name == _default_terms %}{% set quote_note = "" %}{% endif %}
+{% if not quote_note %}{% set quote_note = "We hope that the above price will meet to your requirement and look forward to hearing from you soon." %}{% endif %}
+
+{#- Offering person: the document owner, with the mobile number of the user when filled. -#}
+{% set _owner_name = frappe.get_fullname(doc.owner) %}
+{% set _owner_hp = frappe.db.get_value("User", doc.owner, "mobile_no") or "" %}
+
+{% set ns = namespace(gross=0, disc=0) %}
+{#- One A4 sheet per page: full header with Page x / N on each, the lines bp_paginate
+    (bp/utils/print_layout.py) puts there, totals, note and signatures on the last sheet only. A line is 5 px plus
+    14.3 px per printed description line (item name, brand/model, each wrapped at chars_per_line).
+    Re-check page_px / last_page_px after changing fonts, header or footer. -#}
+{% set pages = bp_paginate(doc.items, chars_per_line=40, page_px=800, last_page_px=560) %}
+{% for page in pages %}
+<div class="bp-legacy-format{% if not loop.last %} bp-sheet-break{% endif %}">
+
+	<div class="bp-top">
+		<div class="bp-left">
+			<div class="bp-company">
+				<div class="bp-company-name">{{ (doc.company or "")|upper }}</div>
+				<div>{{ company_address_line }}</div>
+				<div>{{ company_contact_line }}</div>
+			</div>
+			<table class="bp-quo-cust">
+				<tr><td class="bp-cust-label">Customer</td><td class="bp-colon">:</td><td><b>{{ doc.customer_name or doc.party_name }}{% if _party_code %} ({{ _party_code }}){% endif %}</b></td></tr>
+				<tr><td class="bp-cust-label">Attn</td><td class="bp-colon">:</td><td>{{ doc.contact_display or "" }}</td></tr>
+				<tr><td class="bp-cust-label">Telp</td><td class="bp-colon">:</td><td>{{ _telp }}</td></tr>
+				<tr><td class="bp-cust-label">Fax</td><td class="bp-colon">:</td><td>{{ _fax }}</td></tr>
+			</table>
+		</div>
+		<div class="bp-right">
+			<div class="bp-doc-heading">QUOTATION</div>
+			<table class="bp-info">
+				<tr class="bp-docno-row"><td class="bp-info-label">No.</td><td>: {{ doc.name }}</td></tr>
+				<tr><td class="bp-info-label">Date</td><td>: {{ frappe.utils.formatdate(doc.transaction_date, "dd-MMM-yy") }}</td></tr>
+				<tr><td class="bp-info-label">F O B</td><td>: {{ _fob }}</td></tr>
+				<tr><td class="bp-info-label">Payment</td><td>: {{ doc.payment_terms_template or "" }}</td></tr>
+				<tr><td class="bp-info-label">Validity</td><td>: {{ _validity }}</td></tr>
+			</table>
+			<div class="bp-page-right">Page : {{ loop.index }} / {{ pages|length }}</div>
+		</div>
+	</div>
+
+	<div class="bp-quo-intro">We are pleased to quote you as follows :</div>
+
+	<table class="items-table">
+		<colgroup><col class="c-no"><col class="c-desc"><col class="c-qty"><col class="c-uom"><col class="c-ccy"><col class="c-price"><col class="c-disc"><col class="c-amt"></colgroup>
+		<thead><tr><th>NO.</th><th>DESCRIPTION</th><th colspan="2">QTY</th><th colspan="2">PRICE</th><th>DISC</th><th>AMOUNT</th></tr></thead>
+		<tbody>
+		{% for idx, row in page %}
+			{% set _price = row.price_list_rate or row.rate or 0 %}
+			{% set _gross = _price * (row.qty or 0) %}
+			{% set _disc = _gross - (row.amount or 0) %}
+			{% set ns.gross = ns.gross + _gross %}
+			{% set ns.disc = ns.disc + _disc %}
+			<tr>
+				<td class="bp-ctr">{{ idx }}</td><td>{{ item_desc(row) }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(row.qty, precision=0) }}</td><td class="bp-ctr">{{ row.uom or "" }}</td>
+				<td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(_price, precision=2) }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(_disc, precision=2) if _disc > 0.005 else "" }}</td>
+				<td class="bp-num">{{ frappe.utils.fmt_money(row.amount or 0, precision=2) }}</td>
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+
+	{% if loop.last %}
+	<table class="bp-quo-total">
+		<tr><td class="bp-tot-label">Total :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.total or 0, precision=2) }}</td></tr>
+		{% if doc.discount_amount %}
+		<tr><td class="bp-tot-label">Disc :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(-1 * doc.discount_amount, precision=2) }}</td></tr>
+		{% endif %}
+		{% for tax in doc.taxes if tax.tax_amount %}
+		<tr><td class="bp-tot-label">{{ tax.description }} :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(tax.tax_amount, precision=2) }}</td></tr>
+		{% endfor %}
+		{% if doc.discount_amount or doc.total_taxes_and_charges %}
+		<tr><td class="bp-tot-label">Grand Total :</td><td class="bp-ctr">{{ doc.currency }}</td><td class="bp-num">{{ frappe.utils.fmt_money(doc.grand_total or 0, precision=2) }}</td></tr>
+		{% endif %}
+	</table>
+
+	<div class="bp-quo-note">{{ quote_note|safe }}</div>
+
+	<table class="bp-sign bp-sign-quo">
+		<tr><td>Customer Confirmation</td><td>{{ (doc.company or "")|upper }}</td></tr>
+		<tr class="bp-sign-space"><td></td><td></td></tr>
+		<tr class="bp-sign-line"><td><span></span></td><td><span></span></td></tr>
+		<tr><td>Name &amp; Date</td><td>{{ _owner_name }}{% if _owner_hp %}<br><small>{{ _owner_hp }}</small>{% endif %}</td></tr>
+	</table>
+	{% endif %}
+</div>
+{% endfor %}
