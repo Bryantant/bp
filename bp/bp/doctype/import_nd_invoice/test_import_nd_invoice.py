@@ -182,6 +182,60 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		self.assertEqual(si.bp_sales_person, person)
 		self.assertEqual([t.sales_person for t in si.sales_team], [person])
 
+	def test_nd_import_skips_credit_and_active_invoice_limits_but_normal_invoices_do_not(self):
+		"""Bry 2026-11-06: invoices the ND System already issued are not blocked by the Customer's
+		Credit Limit or Max Active Invoices; a normal invoice still is, and the ND invoices count
+		as outstanding for it."""
+		from unittest.mock import patch
+
+		from bp.overrides.sales_invoice import check_active_invoice_limit
+
+		company = frappe.db.get_single_value("Global Defaults", "default_company")
+		nd_code = frappe.generate_hash(length=8)
+		customer = frappe.get_doc(
+			{
+				"doctype": "Customer",
+				"customer_name": f"Test ND Limits {nd_code}",
+				"customer_group": "Individual",
+				"territory": "Indonesia",
+				"custom_nd_code": nd_code,
+				"custom_cn_initial": "Z",
+				"custom_max_active_invoices": 1,
+				"credit_limits": [{"company": company, "credit_limit": 1}],
+			}
+		).insert(ignore_permissions=True)
+
+		def import_one(number, amount):
+			batch = frappe.get_doc(
+				{
+					"doctype": "Import ND Invoice",
+					"rows": [
+						{
+							"nd_invoice_no": number,
+							"cust_code_nd": nd_code,
+							"invoice_date": frappe.utils.today(),
+							"amount": amount,
+						}
+					],
+				}
+			).insert(ignore_permissions=True)
+			batch.submit()
+			return frappe.get_doc("Sales Invoice", batch.rows[0].sales_invoice)
+
+		with patch("bp.overrides.sales_invoice.enforced", return_value=True):
+			# two ND invoices, each far above the Credit Limit of 1 and past Max Active Invoices of 1
+			first = import_one("TEST-ND-LIM-1", 125000)
+			second = import_one("TEST-ND-LIM-2", 75000)
+			self.assertEqual((first.docstatus, second.docstatus), (1, 1))
+			self.assertFalse(frappe.flags.bp_nd_import)  # the flag does not outlive the batch
+
+			# a normal invoice for the same customer is still stopped by both controls
+			normal = frappe.get_doc({"doctype": "Sales Invoice", "customer": customer.name, "company": company})
+			with self.assertRaises(frappe.ValidationError):
+				check_active_invoice_limit(normal)
+			with self.assertRaises(frappe.ValidationError):
+				second.check_credit_limit()
+
 	def test_submit_blocked_when_nd_number_is_taken_as_invoice_name(self):
 		taken = frappe.db.get_value("Sales Invoice", {"custom_nd_invoice_no": ["is", "not set"]}, "name")
 		if not taken:

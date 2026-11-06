@@ -26,9 +26,26 @@ from bp.utils.cascading_discount import recalculate_cascading_discount as _recal
 
 class BPSalesInvoice(SalesInvoice):
 	def check_credit_limit(self):
-		if not enforced("enforce_credit_limit"):
+		if nd_import_running() or not enforced("enforce_credit_limit"):
 			return
 		super().check_credit_limit()
+
+
+def is_credit_controller():
+	"""Does the current user hold the role set as Accounts Settings > Credit Controller?
+
+	That one role lets a user submit a Sales Invoice past the customer's Credit Limit (core
+	ERPNext), Max Active Invoices (here) and Batas Lewat Jatuh Tempo (Server Script
+	"Sales Invoice - Blokir Customer Lewat Jatuh Tempo"); everyone else can save the draft but
+	not submit it (Bry 2026-11-06)."""
+	role = frappe.db.get_single_value("Accounts Settings", "credit_controller")
+	return bool(role) and role in frappe.get_roles()
+
+
+def nd_import_running():
+	"""True while Import ND Invoice is submitting its batch: invoices that the ND System
+	already issued skip the Credit Limit and Max Active Invoices controls (Bry 2026-11-06)."""
+	return bool(frappe.flags.get("bp_nd_import"))
 
 
 def enforced(setting):
@@ -197,7 +214,7 @@ def recalculate_cascading_discount(doc, method=None):
 
 
 def check_active_invoice_limit(doc, method=None):
-	if doc.is_return:
+	if doc.is_return or nd_import_running() or is_credit_controller():
 		return
 
 	if not enforced("enforce_active_invoice_limit"):

@@ -188,7 +188,15 @@ class ImportNDInvoice(Document):
 			)
 
 	def on_submit(self):
-		self.create_sales_invoices()
+		# ND invoices were already issued by the ND System, so the Customer's Credit Limit and
+		# Max Active Invoices do not block them (Bry 2026-11-06). The flag is read by
+		# bp.overrides.sales_invoice and only lives while this batch creates its invoices; they
+		# still count as outstanding for every later normal invoice.
+		frappe.flags.bp_nd_import = True
+		try:
+			self.create_sales_invoices()
+		finally:
+			frappe.flags.bp_nd_import = False
 
 	def on_cancel(self):
 		self.cancel_related_sales_invoices()

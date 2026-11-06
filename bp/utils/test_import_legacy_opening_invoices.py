@@ -131,3 +131,19 @@ class IntegrationTestOpeningInvoices(IntegrationTestCase):
 			self.assertFalse(enforced("enforce_credit_limit"))
 		with patch(raw, return_value=(("1",),)):
 			self.assertTrue(enforced("enforce_active_invoice_limit"))
+
+	def test_credit_controller_role_lets_a_user_pass_the_active_invoice_limit(self):
+		"""Bry 2026-11-06: one role (Accounts Settings > Credit Controller) bypasses the limits."""
+		from bp.overrides.sales_invoice import check_active_invoice_limit, is_credit_controller
+
+		mod = "bp.overrides.sales_invoice"
+		doc = frappe._dict(is_return=0, customer="C1", name="SINV-X", customer_name="C1")
+		with patch(f"{mod}.frappe.db.get_single_value", return_value="Credit Controller"):
+			with patch(f"{mod}.frappe.get_roles", return_value=["Sales User", "Credit Controller"]):
+				self.assertTrue(is_credit_controller())
+				check_active_invoice_limit(doc)  # returns before any query
+			with patch(f"{mod}.frappe.get_roles", return_value=["Sales User"]):
+				self.assertFalse(is_credit_controller())
+		with patch(f"{mod}.frappe.db.get_single_value", return_value=None):
+			with patch(f"{mod}.frappe.get_roles", return_value=["Sales User", "Credit Controller"]):
+				self.assertFalse(is_credit_controller())  # no role configured: nobody bypasses
