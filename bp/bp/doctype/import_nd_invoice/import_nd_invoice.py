@@ -354,7 +354,9 @@ def parse_pasted(text):
 	Rows come back with resolved_customer/cust_code/customer_name already
 	filled in where a match exists, so the grid shows them immediately.
 	"""
-	frappe.only_for(["System Manager", "Accounts Manager"])
+	# Follow the doctype's own permissions, so a role granted create access in the UI
+	# (prod has "Import ND") can use Paste. A fixed role list here blocked that role.
+	frappe.has_permission("Import ND Invoice", "create", throw=True)
 
 	text = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
 	# keep each line's own number (blank lines included) so errors match the rows the user copied

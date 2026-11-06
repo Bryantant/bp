@@ -266,6 +266,39 @@ class TestPasteFromExcel(FrappeTestCase):
 			],
 		)
 
+	def test_paste_follows_doctype_permission_not_a_fixed_role_list(self):
+		# a user with only a role that has create on the doctype (like prod's "Import ND") may paste;
+		# a user without create access may not
+		user = "paste-perm-test@example.com"
+		if not frappe.db.exists("User", user):
+			frappe.get_doc(
+				{"doctype": "User", "email": user, "first_name": "Paste", "send_welcome_email": 0}
+			).insert(ignore_permissions=True)
+		if not frappe.db.exists("Role", "Paste Perm Test"):
+			frappe.get_doc({"doctype": "Role", "role_name": "Paste Perm Test"}).insert(ignore_permissions=True)
+		frappe.db.delete("Custom DocPerm", {"parent": "Import ND Invoice", "role": "Paste Perm Test"})
+		frappe.get_doc("User", user).remove_roles("Paste Perm Test")
+		original_user = frappe.session.user
+		try:
+			frappe.set_user(user)
+			frappe.clear_cache(user=user)
+			with self.assertRaises(frappe.PermissionError):
+				parse_pasted("I1\t17/10/2026\tC1\t10")
+
+			frappe.set_user("Administrator")
+			from frappe.permissions import add_permission, update_permission_property
+
+			add_permission("Import ND Invoice", "Paste Perm Test", 0)
+			update_permission_property("Import ND Invoice", "Paste Perm Test", 0, "create", 1)
+			frappe.get_doc("User", user).add_roles("Paste Perm Test")
+			frappe.set_user(user)
+			frappe.clear_cache(user=user)
+			parse_pasted("I1\t17/10/2026\tC1\t10")
+		finally:
+			frappe.set_user(original_user)
+			frappe.db.delete("Custom DocPerm", {"parent": "Import ND Invoice", "role": "Paste Perm Test"})
+			frappe.clear_cache()
+
 	def test_paste_without_header_uses_salesman_then_the_nd_column_order(self):
 		result = parse_pasted(
 			"\tI261000444\t17/10/2026\t17CDFN1003\t1000\n\tSubtotal (1)\t\t\t1000\n\t\t\t\t\n\tI261000435\t17/10/2026\t17CDDR1004\t5"
