@@ -7,6 +7,18 @@ status: living document — keep it current, do not let it go stale
 
 # Print Format Rules — bp app
 
+> **CHANGE 2026-11-07 (Bry): the app no longer carries print templates or print patches.** Print formats are
+> UI customizations owned by prod (bp.hicomsystem.com): edit them in the Print Format form there (dev first,
+> prod only with Bry's confirmation), like Client Script and Server Script. The folder `bp/templates/print_formats/`
+> and the ten patches that read it (create_*_print_format, rename_*, swap_surat_jalan_delivery_order_names) were
+> deleted; they had all run on prod already. History and rollback: the daily snapshot in
+> `~/Dev/snapshots/bp-prod-customizations/print_format/` (git, one commit per change). A copy of the last
+> templates is in `Client/BP/bp-dev/archive/print-templates-2026-11-07/`. Dev gets the current formats by
+> restoring prod (skill prod-to-dev-restore). What stays in the app: the Jinja helpers the formats call
+> (`jinja.methods` in hooks.py: `code128_svg`, `bp_paginate`, `bp_item_line`) and the print lock/audit code.
+> **Where this document still says "repo file", "template file", "upsert patch" or "re-run the patch", read
+> "the Print Format in the UI"; the layout rules, quirks and lessons below remain valid.**
+
 This file is the living rulebook for how print formats get built and adjusted in this
 project. It should always reflect the *current* constraints — if a rule changes, edit
 the rule in place rather than leaving the old one and adding a note.
@@ -69,23 +81,13 @@ trial-and-error:
 - Custom print formats are built as **Custom HTML / Jinja** (`Print Format Type =
   Jinja`, Print Format Builder off), not the drag-and-drop builder — full control over
   markup/CSS.
-- **Decision (2026-07-21, supersedes the old "add to fixtures" guidance below this
-  bullet):** print formats are created/synced via an idempotent **patch**, not
-  `fixtures`. This app has already moved off fixtures for custom-field-style
-  customization in favor of `create_custom_fields(...)`-style patches (only
-  `Client Script` remains fixture-tracked in `hooks.py`) — creating Print Formats the
-  same way is more consistent, and avoids fixtures silently pulling in *every* print
-  format on the site. Pattern: keep the actual HTML and CSS as real, reviewable repo
-  files under `bp/bp/templates/print_formats/*.html` + `*.css` (one `.css` per
-  `.html`, same basename — see the next bullet for why they're separate files), and
-  have a patch (e.g. `bp/bp/patches/v1_0/create_do_invoice_print_formats.py`) read
-  each with `frappe.read_file(frappe.get_app_path("bp", "templates", "print_formats",
-  "<file>"))` (raw text, **not** `frappe.render_template` — the `.html` is itself a
-  Jinja template meant to render later at print time, not now) and upsert them into
-  the `Print Format` doc's `html` and `css` fields respectively. Re-run the patch
-  (`bench --site bp.localhost execute bp.patches.v1_0.<module>.execute`) after editing
-  either file to re-sync the DB copy — `bench migrate` alone won't re-run an
-  already-applied patch.
+- **Decision (2026-11-07, supersedes the 2026-07-21 patch/template decision):** print formats are
+  edited only in the UI (Print Format form, `html` and `css` fields) and live in the site's database; prod is
+  the source of truth. No fixtures, no patches, no template files in the app. The earlier pattern (HTML/CSS as repo
+  files under `bp/templates/print_formats/`, copied into the Print Format by an idempotent `upsert` patch) was
+  removed because a UI edit and the repo file could drift apart and one-directional re-syncs silently overwrote UI
+  changes. Keep the formats self-contained: fonts as `data:` URIs in the CSS, no `{% include %}` of app files; the
+  only app code they call is the `jinja.methods` helpers listed in hooks.py.
 - **Decision (2026-07-21):** CSS lives in its own `.css` file per format (paired with
   the `.html` by basename, e.g. `sales_invoice.html` + `sales_invoice.css`), copied
   into the Print Format's dedicated `css` field — **not** inlined via a `<style>` tag
@@ -134,9 +136,8 @@ trial-and-error:
   and the invoice-level Reset Print Lock were removed (Bry 2026-10-17). The gate in
   `bp/bp/overrides/sales_invoice.py` only logs and counts direct prints of the listed
   formats; it never blocks.
-- Dev workflow when iterating on a print format: edit the template file(s) under
-  `bp/bp/templates/print_formats/`, re-run the upsert patch, `bench --site
-  bp.localhost clear-cache`, then preview via the doctype's Print view (or
+- Dev workflow when iterating on a print format (2026-11-07): edit the `html` / `css` of the Print Format in the
+  UI on dev, `bench --site bp.localhost clear-cache`, then preview via the doctype's Print view (or
   `/printview?doctype=<...>&name=<...>&format=<...>`). For a fast inner loop without a
   browser, `bench --site bp.localhost execute frappe.get_print --kwargs
   '{"doctype":"...","name":"...","print_format":"..."}'` renders server-side and
@@ -205,16 +206,11 @@ trial-and-error:
   sit higher than column 1's). This was first added by Bry directly in the Desk UI
   on the "Sales Invoice" format — mirrored into the repo file and into "Delivery
   Order" for consistency between the two.
-- **Process rule:** the upsert patch is one-directional — it overwrites the DB's
-  `html` field from the repo file, never the other way around. If a change is made
-  directly in the Desk UI (Print Format Builder / HTML field) instead of in
-  `bp/bp/templates/print_formats/*.html`, it will be **silently lost** the next time
-  the patch runs (`bench migrate` on a fresh site, a manual re-run after an unrelated
-  template edit, etc.). This happened once already (2026-07-21, the signature-line
-  `<br>` fix above) — always check the live DB content against the repo file
-  (`SELECT html FROM \`tabPrint Format\` WHERE name='...'`, unescape, `diff` against
-  the repo file) before editing further if there's any chance of a Desk-side change
-  in between sessions.
+- **Process rule (2026-11-07):** there is no repo copy any more, so no one-directional overwrite. The risk now is
+  dev and prod drifting: before editing a format on dev, make sure dev holds prod's current copy (restore, or
+  compare `html` / `css` with the latest file in the prod snapshot), and apply the finished change to prod by hand
+  with Bry's confirmation. (Historic: on 2026-07-21 a Desk edit of the signature-line `<br>` was lost when the
+  upsert patch re-ran, which is why the patch was dropped.)
 
 ### Per print format
 
@@ -250,6 +246,23 @@ trial-and-error:
   (`bp-trd.mdb`, 2026-10-29): PrtInvForm/PrtInvFormC/PrtDOSForm print DONotesx (text box under the note), PrtDOForm
   does not and its REMARK column is an empty box; 1,757 of 6,647 DOs since 1 Sep 2026 carried a memo ("ANTAR HARI
   INI", "JEMPUT GUDANG", names).
+- **Remark font (Bry 2026-11-04):** `.bp-remark` on the Invoice is 12 px (was 11; Delivery Order unchanged). The remark
+  height budget follows: wrap 70 -> 64 characters, first line 12.5 px and every next 15 px, `_last_px` base 183 -> 184 (at
+  183 the 10 rows + 1 remark line case moved its last row to a second sheet by 0.5 px). Checked by PDF page count (10 rows
+  + 1 line, 9 + 2, 8 + a 2-line wrap, 5 + none: one sheet each); not measured on paper. On prod since 2026-11-04 (backup `prod_print_backup_20261104_110558.json`; prod's Invoice
+  copy equalled the repo apart from these lines, so the repo files went as they are).
+- **Item table font 13 px (Bry 2026-11-04, was 12; Invoice only, bp-note stays 12):** a row is now 5 + 14.3 = 19.3 px
+  (`bp_px` was 5 + 12.1, stale since the 11 -> 12 change of 2026-11-03). Measured on the dev PDF with the guards off: 12
+  one-line rows plus the totals fit one sheet, 13 spill the totals onto a second PDF page. Guards: `_last_px` 173 -> 200
+  (no remark; 10 rows + totals, about 2 rows of safety), 184 -> 211 less the remark; full sheets `page_px` 339 -> 366 (last
+  sheet + 166 footer room); chars per line for the wrap count 52 -> 43. Check by comparing sheets in the HTML with
+  pages in the PDF (equal for 7-22 rows, remark cases, 62-character names). On prod since 2026-11-04. Not measured on
+  paper; if the LQ-310 print shows the footer crowded, lower `_last_px` first.
+- **Remark 13 px + unit conversion in DESCRIPTION (Bry 2026-11-04, Invoice only, on prod since 2026-11-04):** `.bp-remark` 12 -> 13 px
+  (wrap 64 -> 59 characters, first line 13.5 px and next 16.25, `_last_px` with a remark 211 - those). The DESCRIPTION cell
+  prints ` (<conversion_factor> <stock_uom>)` after `item_name` when the item row's conversion factor is not 1 (`%g`:
+  `(24 PACK)`, `(0.5 PCS)`; the UOM is dropped if the row has no `stock_uom`; the UOM part was added the same day and
+  is on prod too); the suffix is counted in the wrap length (`bp_sfx` on the line dict). Delivery Order has neither yet.
 - Footer note: `doc.terms`, else the company's `default_selling_terms` ("Informasi Rekening" = legacy DONotesx text).
 - **Paper (Bry 2026-10-17): continuous form 9.5 x 5.5 in on dot-matrix printers, Sales Invoice document only**
   (both formats here; PO, Penerimaan Barang, Mutasi Barang, Payment Note, Journal Voucher stay A4). `@page` is
@@ -276,6 +289,22 @@ trial-and-error:
   Kembali form. `barcode_module_mm` = 0.4233 (1/60 inch: whole printer dots at 120/180/360 dpi, ~75 mm wide for
   SINV-A26100001); never scale the image with CSS. A smaller size only after the paper test
   (`bp-dev/print-test/2026-10-17-uji-barcode-dot-matrix.pdf`, sizes A-D, scanner + phone camera).
+- **2026-11-04 (Invoice):** `barcode_module_mm` back to 0.4233 (3 dots at 180 dpi, about 70 mm wide for INV-C26110001).
+  The 2-dot test of 2026-11-01 (0.2822, 47 mm) was too tight, the scanner could not read it. The Invoice change is on
+  prod too (2026-11-04).
+- **2026-11-05 (Surat Jalan = `delivery_order.*`):** matched to the Invoice on what is not different by nature: margin left
+  14 mm (was 16; the columns NO. to UOM now have the Invoice's exact widths on the 191.3 mm block, REMARK takes the rest),
+  item font 13 px, note 12 px, remark 13 px, 14.3 px per text line (43 characters per line), barcode 0.4233 mm, the
+  `(24 PACK)` suffix, page limits 200 / 211 - remark lines / full sheets 366. Measured on the dev PDF with the guards off:
+  one sheet holds 12 one-line rows (13 spill), 11 with a one-line remark, 10 with two, 9 with three; the guard allows
+  10 / 9 / 8. Remark wraps at about 80 characters (note is 70 % wide, 50 % on the Invoice), not measured. On prod
+  since 2026-11-05, not measured on paper.
+- **2026-11-05 (Penerimaan Barang / Penerimaan Barang Harga):** DESCRIPTION as on the Invoice: `item_name` only (no
+  brand/model second line, no `bp_item_line`) plus `(factor stock_uom)` when `conversion_factor` is not 1. Lines are dicts
+  with `bp_px` = 5 + 14.3 per wrapped line (40 characters per line with prices, 55 without), passed to
+  `bp_paginate(_lines, page_px=795, last_page_px=679)`; the description wraps (CSS `td.bp-desc-1` white-space normal in the
+  repo copy). Checked on dev: 35 / 36 / 76 / 77 rows give the same sheet counts as before (1 / 2 / 2 / 3). On prod since 2026-11-05: the
+  prod copy is built from prod's html/css plus only this change (prod uses the `item_desc` macro, not `bp_item_line`).
 - These two formats are no longer pure Jinja: they call the bp Jinja methods `code128_svg` and `bp_paginate`
   (hooks `jinja.methods`). Both are plain functions with unit tests (`bp/utils/test_barcode.py`,
   `test_print_layout.py`); the rest stays editable in the Desk.
@@ -356,6 +385,16 @@ heading underlined, boxed column header row, borderless body). Each `.html`/`.cs
   `prod_print_backup_20261104_*.json`), but prod's copy is NOT the repo copy: prod still has the `item_desc` macro
   (multi-line description, `chars_per_line`) and the old company address; the repo has `bp_item_line` (one row) and the
   `-Office` address, not shipped yet. Only the two changes above were added to prod's own html/css.
+- **Due Date (Bry 2026-11-04):** Penerimaan Barang (+ Harga) print `Due Date` (`doc.due_date`, dd-MMM-yy) as a row
+  under `Date` in the document info block. The row adds ~17 px of header, so `bp_paginate` budgets went from
+  812 / 696 to 795 / 679 (a 36-line invoice spilled its signature name onto an extra page with the old numbers).
+  On prod since 2026-11-04 (backup `prod_print_backup_20261104_105911.json`), built from prod's own copy like the
+  changes above.
+- **Purchase Order, Bry 2026-11-04:** same bottom footer / signature rule as Penerimaan Barang (`bp-sheet-last`,
+  `.bp-bottom`, rule above the note; same CSS block). DESCRIPTION column 37 -> 40 %, taken from PRICE 13 -> 12 % and
+  AMOUNT 17 -> 15 % (DISCOUNT stays 10 %: at 9 % the header touched the border). On prod since 2026-11-04 (backup
+  `prod_print_backup_20261104_002426.json`), built from prod's own copy like Penerimaan Barang (multi-line `item_desc`,
+  `chars_per_line` 37 -> 40 for the wider column); the repo copy still has `bp_item_line` and the `-Office` address.
 
 ## 3. Technical Lessons
 

@@ -4,14 +4,4 @@
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
-bp.patches.v1_0.create_do_invoice_print_formats
-bp.patches.v1_0.rename_delivery_order_print_format
-bp.patches.v1_0.create_document_print_formats
-bp.patches.v1_0.rename_sales_invoice_print_format_to_invoice
-bp.patches.v1_0.create_retur_penjualan_print_format
-bp.patches.v1_0.rename_surat_jalan_print_format
-bp.patches.v1_0.create_surat_jalan_sementara_print_format
-bp.patches.v1_0.create_quotation_print_format
-bp.patches.v1_0.swap_surat_jalan_delivery_order_names
 bp.patches.v1_0.delivery_note_as_delivery_order
-bp.patches.v1_0.create_payment_entry_print_format
