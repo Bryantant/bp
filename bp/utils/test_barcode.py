@@ -46,3 +46,50 @@ class TestCode128(unittest.TestCase):
 		# widths alternate bar/space starting and ending with a bar: one <rect x=...> per bar
 		widths = barcode.code128_modules("C26090244")
 		self.assertEqual(svg.count("<rect x="), (len(widths) + 1) // 2)
+
+
+class TestQr(unittest.TestCase):
+	def _svg(self, value):
+		uri = barcode.qr_svg(value)
+		self.assertTrue(uri.startswith("data:image/svg+xml;base64,"))
+		return base64.b64decode(uri.split(",", 1)[1]).decode()
+
+	def _modules(self, svg):
+		"""Rebuild the dark modules from the path, to compare with the matrix."""
+		import re
+
+		dark = set()
+		quiet = 2
+		for x, y, w in re.findall(r"M(\d+) (\d+)h(\d+)v1h-\d+z", svg):
+			for i in range(int(w)):
+				dark.add((int(x) - quiet + i, int(y) - quiet))
+		return dark
+
+	def test_invoice_name_is_version_2_and_about_25_mm(self):
+		matrix = barcode.qr_matrix("INV-B26110116")
+		self.assertEqual(len(matrix), 25)
+		svg = self._svg("INV-B26110116")
+		self.assertIn('width="24.55mm"', svg)  # (25 + 2 x 2) x 0.8467
+		self.assertIn('viewBox="0 0 29 29"', svg)
+
+	def test_short_name_is_version_1(self):
+		self.assertEqual(len(barcode.qr_matrix("A26100002")), 21)
+
+	def test_path_is_the_matrix(self):
+		for value in ("INV-B26110116", "SR-A26110137", "A26100002", "ND-26100001", "I261100375"):
+			matrix = barcode.qr_matrix(value)
+			expected = {(x, y) for y, row in enumerate(matrix) for x, v in enumerate(row) if v}
+			self.assertEqual(self._modules(self._svg(value)), expected, value)
+
+	def test_finder_patterns_in_three_corners(self):
+		matrix = barcode.qr_matrix("INV-B26110116")
+		n = len(matrix)
+		for ox, oy in ((0, 0), (n - 7, 0), (0, n - 7)):
+			self.assertTrue(all(matrix[oy][ox + i] for i in range(7)))  # top bar of the finder
+			self.assertTrue(all(matrix[oy + 6][ox + i] for i in range(7)))  # bottom bar
+			self.assertEqual(matrix[oy + 3][ox + 3], 1)  # centre
+
+	def test_rejects_empty_or_non_text(self):
+		for value in ("", None, 12, "x" * 101):
+			with self.assertRaises(ValueError, msg=repr(value)):
+				barcode.qr_matrix(value)

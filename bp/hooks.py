@@ -101,10 +101,12 @@ doctype_js = {
 
 # add methods and filters to jinja environment
 # code128_svg: barcode of the invoice name on the Sales Invoice / Surat Jalan prints (HT-42)
+# qr_svg: QR of the invoice name on the Sales Invoice print (2026-11-14, replaces the Code 128 there)
 # bp_paginate / bp_item_line: lines per 9.5 x 5.5 in continuous-form page, one row per line, same prints
 jinja = {
 	"methods": [
 		"bp.utils.barcode.code128_svg",
+		"bp.utils.barcode.qr_svg",
 		"bp.utils.print_layout.bp_paginate",
 		"bp.utils.print_layout.bp_item_line",
 	],

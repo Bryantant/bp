@@ -13,6 +13,10 @@ which pushes the module up to 1/60 inch and the barcode gets wide.
 
 Registered as a Jinja method in hooks.py:
 	<img class="bp-barcode" src="{{ code128_svg(doc.name) }}">
+
+qr_svg (2026-11-14, client request): the Sales Invoice print swaps the Code 128 for a QR
+code of the same text (the scanner on the Invoice Kembali form reads the text either way):
+	<img class="bp-qr" src="{{ qr_svg(doc.name) }}">
 """
 
 import base64
@@ -113,5 +117,47 @@ def code128_svg(value, module_mm=0.26, height_mm=9):
 		f'<svg xmlns="http://www.w3.org/2000/svg" width="{total * module_mm:.2f}mm" height="{height_mm}mm" '
 		f'viewBox="0 0 {total} 1" preserveAspectRatio="none" shape-rendering="crispEdges">'
 		f'<rect width="{total}" height="1" fill="#fff"/><g fill="#000">{"".join(rects)}</g></svg>'
+	)
+	return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
+
+
+# 0.8467 mm = 6 dots at 180 dpi = 4 dots at 120 dpi = 12 dots at 360 dpi (as the Code 128 module)
+QR_MODULE_MM = 0.8467
+
+
+def qr_matrix(value, error="H"):
+	"""Rows of 0/1 for `value` as a QR code (pyqrcode, already a Frappe dependency).
+	Level H (30 % recovery) because dot-matrix ink spread eats modules; a 13-character
+	invoice name then is version 2 (25 x 25)."""
+	if not isinstance(value, str) or not value or len(value) > 100:
+		raise ValueError("QR value must be 1-100 characters of text")
+	from pyqrcode import create
+
+	return create(value, error=error).code
+
+
+def qr_svg(value, module_mm=QR_MODULE_MM, quiet=2):
+	"""SVG data URI of `value` as a QR code, `module_mm` per module and `quiet` white modules
+	around it (the sheet around it adds more). One path of horizontal runs, crisp edges.
+	Size = (modules + 2 x quiet) x module_mm: 24.6 mm for version 2, 21.2 mm for version 1."""
+	matrix = qr_matrix(value)
+	n = len(matrix)
+	total = n + 2 * quiet
+	path = []
+	for y, row in enumerate(matrix):
+		x = 0
+		while x < n:
+			if row[x]:
+				start = x
+				while x < n and row[x]:
+					x += 1
+				path.append(f"M{start + quiet} {y + quiet}h{x - start}v1h-{x - start}z")
+			else:
+				x += 1
+	size = f"{total * module_mm:.2f}mm"
+	svg = (
+		f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+		f'viewBox="0 0 {total} {total}" shape-rendering="crispEdges">'
+		f'<rect width="{total}" height="{total}" fill="#fff"/><path fill="#000" d="{"".join(path)}"/></svg>'
 	)
 	return "data:image/svg+xml;base64," + base64.b64encode(svg.encode()).decode()
