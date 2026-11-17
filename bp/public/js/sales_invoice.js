@@ -1,29 +1,11 @@
+// Update Stock 0 for an invoice made from a Surat Jalan, the Sales Person <-> Sales Team sync and the Sales Person filter
+// are Client Scripts / Link Filters on the site since 2026-11-16 (Client/BP/bp-dev/scripts/client_scripts).
 frappe.ui.form.on("Sales Invoice", {
-	onload: function (frm) {
-		// Made from a Surat Jalan: the goods already left, so Update Stock is
-		// off (bp.overrides.sales_invoice.before_insert does the same on save).
-		if (
-			frm.is_new() &&
-			!frm.doc.is_return &&
-			(frm.doc.items || []).some((d) => d.delivery_note)
-		) {
-			frm.set_value("update_stock", 0);
-		}
-	},
-
 	refresh: function (frm) {
-		frm.set_query("bp_sales_person", function () {
-			return { filters: { is_group: 0 } };
-		});
-		bp.sales_invoice.sync_from_table(frm);
 		bp.sales_invoice.render_print_controls(frm);
 		bp.sales_invoice.add_send_to_warehouse(frm);
 		bp.sales_invoice.set_default_print_format(frm);
 		bp.sales_invoice.patch_print_view();
-	},
-
-	bp_sales_person: function (frm) {
-		bp.sales_invoice.push_to_table(frm);
 	},
 });
 
@@ -70,27 +52,6 @@ bp.sales_invoice = {
 			return original.apply(this, arguments);
 		};
 		PrintView.prototype.__bp_patched = true;
-	},
-
-	// On load: read the first row of sales_team → populate the dropdown.
-	// Handles saved/amended docs so the dropdown always reflects stored data.
-	sync_from_table: function (frm) {
-		var first = frm.doc.sales_team && frm.doc.sales_team[0];
-		if (first && first.sales_person && frm.doc.bp_sales_person !== first.sales_person) {
-			frm.set_value("bp_sales_person", first.sales_person);
-		}
-	},
-
-	// When the dropdown changes: replace sales_team with a single row at 100%.
-	push_to_table: function (frm) {
-		var person = frm.doc.bp_sales_person;
-		frm.clear_table("sales_team");
-		if (person) {
-			var row = frm.add_child("sales_team");
-			row.sales_person = person;
-			row.allocated_percentage = 100;
-		}
-		frm.refresh_field("sales_team");
 	},
 
 	// Print status indicator and Print Log link. Printing from the invoice is free;

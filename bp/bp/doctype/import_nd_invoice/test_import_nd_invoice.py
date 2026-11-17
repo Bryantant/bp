@@ -188,8 +188,6 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		as outstanding for it."""
 		from unittest.mock import patch
 
-		from bp.overrides.sales_invoice import check_active_invoice_limit
-
 		company = frappe.db.get_single_value("Global Defaults", "default_company")
 		nd_code = frappe.generate_hash(length=8)
 		customer = frappe.get_doc(
@@ -229,10 +227,10 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 			self.assertEqual((first.docstatus, second.docstatus), (1, 1))
 			self.assertFalse(frappe.flags.bp_nd_import)  # the flag does not outlive the batch
 
-			# a normal invoice for the same customer is still stopped by both controls
-			normal = frappe.get_doc({"doctype": "Sales Invoice", "customer": customer.name, "company": company})
-			with self.assertRaises(frappe.ValidationError):
-				check_active_invoice_limit(normal)
+			# a normal invoice for the same customer is still stopped by the Credit Limit. The Max Active Invoices
+			# check is the Server Script "Sales Invoice - Batas Invoice Aktif" (site data): the two ND invoices above were
+			# submitted with Max Active Invoices at 1, which proves it skips them (custom_nd_invoice_no); the block on a
+			# normal invoice is covered by bp-dev/scripts/2026-11-16-uji-pindah-aturan-app-dev.py.
 			with self.assertRaises(frappe.ValidationError):
 				second.check_credit_limit()
 

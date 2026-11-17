@@ -70,14 +70,5 @@ def before_naming(doc, method=None):
 	else:
 		doc.naming_series = PURCHASE_RETURN_SERIES_OCT15
 
-
-def before_validate(doc, method=None):
-	"""Book stock rows straight to the warehouse's inventory account.
-
-	With Update Stock, item fetch fills Expense Head from the company's Stock
-	Received But Not Billed and core validate then swaps it to the inventory
-	account with an "Expense Head Changed" popup on every save. BP never uses
-	Purchase Receipts, so run the same core assignment first, silently.
-	"""
-	if doc.update_stock and doc.get("items"):
-		doc.set_expense_account(for_validate=False)
+# The Expense Head step (set_expense_account before core validate, no "Expense Head Changed" popup) is a Server Script on
+# the site since 2026-11-16: "Purchase Invoice - Expense Head Stok" (Client/BP/bp-dev/scripts/server_scripts).

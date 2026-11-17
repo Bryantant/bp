@@ -213,7 +213,7 @@ class ImportNDInvoice(Document):
 			# ND invoices move no stock (the placeholder is non-stock); never let a default turn it on
 			si.update_stock = 0
 			si.custom_nd_invoice_no = row.nd_invoice_no
-			# optional; the Sales Invoice validate hook builds the Sales Team from it
+			# optional; the Server Script "Sales Invoice - Sales Person ke Sales Team" builds the Sales Team from it on save
 			si.bp_sales_person = row.salesman or None
 			si.append(
 				"items",

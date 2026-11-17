@@ -1,6 +1,5 @@
 import frappe
 from erpnext.accounts.doctype.sales_invoice.sales_invoice import SalesInvoice
-from frappe import _
 from frappe.utils import cint, now_datetime
 
 from bp.overrides.series import (
@@ -31,15 +30,9 @@ class BPSalesInvoice(SalesInvoice):
 		super().check_credit_limit()
 
 
-def is_credit_controller():
-	"""Does the current user hold the role set as Accounts Settings > Credit Controller?
-
-	That one role lets a user submit a Sales Invoice past the customer's Credit Limit (core
-	ERPNext), Max Active Invoices (here) and Batas Lewat Jatuh Tempo (Server Script
-	"Sales Invoice - Blokir Customer Lewat Jatuh Tempo"); everyone else can save the draft but
-	not submit it (Bry 2026-11-06)."""
-	role = frappe.db.get_single_value("Accounts Settings", "credit_controller")
-	return bool(role) and role in frappe.get_roles()
+# The Credit Controller role (Accounts Settings) also lets a user submit past Max Active Invoices and Batas Lewat Jatuh
+# Tempo; those two are Server Scripts on the site ("Sales Invoice - Batas Invoice Aktif", "... - Blokir Customer Lewat
+# Jatuh Tempo"); everyone else can save the draft but not submit it (Bry 2026-11-06).
 
 
 def nd_import_running():
@@ -103,16 +96,9 @@ def _billed_from_delivery_note(doc):
 	return not doc.get("is_return") and any(item.get("delivery_note") for item in doc.get("items") or [])
 
 
-def before_insert(doc, method=None):
-	"""An invoice made from a Surat Jalan does not move stock again.
-
-	Update Stock defaults to on (Property Setter), and Create > Sales Invoice on
-	a Delivery Note keeps that default, so the first save failed with "Stock
-	cannot be updated against the following Delivery Notes". Runs before
-	before_naming, which still names it as a goods invoice.
-	"""
-	if _billed_from_delivery_note(doc):
-		doc.update_stock = 0
+# An invoice made from a Surat Jalan does not move stock again: Update Stock is set to 0 by the Server Script "Sales
+# Invoice - Update Stock Nol dari Surat Jalan" (Before Insert, runs before before_naming below, which still names it as
+# a goods invoice) since 2026-11-16.
 
 
 def before_naming(doc, method=None):
@@ -166,21 +152,8 @@ def before_naming(doc, method=None):
 		doc.naming_series = SALES_INVOICE_SERIES_OCT15
 
 
-def validate(doc, method=None):
-	# Sales Person is optional on every invoice (Bry 2026-10-27).
-	if not doc.bp_sales_person and doc.is_opening == "Yes":
-		# An opening balance takes the customer's salesperson when it has one.
-		doc.bp_sales_person = frappe.db.get_value("Customer", doc.customer, "bp_sales_person")
-
-	if not doc.bp_sales_person:
-		doc.sales_team = []
-		return
-
-	# Rebuild table unconditionally — catches REST/data-importer saves that skip the browser.
-	doc.sales_team = []
-	row = doc.append("sales_team", {})
-	row.sales_person = doc.bp_sales_person
-	row.allocated_percentage = 100
+# The Sales Team is rebuilt from bp_sales_person on every save by the Server Script "Sales Invoice - Sales Person ke
+# Sales Team" (Before Save; Sales Person is optional on every invoice, Bry 2026-10-27) since 2026-11-16.
 
 
 # ---------------------------------------------------------------------------
@@ -202,49 +175,8 @@ def recalculate_cascading_discount(doc, method=None):
 	_recalculate_cascading_discount(doc)
 
 
-# ---------------------------------------------------------------------------
-# Active invoice limit
-#
-# A Customer may cap how many of their submitted invoices can stay unpaid at
-# once (Customer.custom_max_active_invoices; blank/0 = no limit). An invoice
-# counts as "active" purely by outstanding_amount > 0 -- delivery status is
-# not considered. Enforced only at submit (drafts are unrestricted). Bypass:
-# the BP Settings switch used while the site is set up or trialled.
-# ---------------------------------------------------------------------------
-
-
-def check_active_invoice_limit(doc, method=None):
-	if doc.is_return or nd_import_running() or is_credit_controller():
-		return
-
-	if not enforced("enforce_active_invoice_limit"):
-		return
-
-	limit = frappe.db.get_value("Customer", doc.customer, "custom_max_active_invoices")
-	if not limit:
-		return
-
-	open_invoices = frappe.get_all(
-		"Sales Invoice",
-		filters={
-			"customer": doc.customer,
-			"docstatus": 1,
-			"is_return": 0,
-			"outstanding_amount": [">", 0],
-			"name": ["!=", doc.name],
-		},
-		pluck="name",
-		order_by="posting_date asc",
-	)
-
-	if len(open_invoices) >= limit:
-		frappe.throw(
-			_(
-				"{0} has reached the maximum of {1} active (unpaid) invoice(s): {2}. "
-				"Collect payment on one of these before submitting a new invoice."
-			).format(doc.customer_name or doc.customer, limit, ", ".join(open_invoices)),
-			title=_("Active Invoice Limit Reached"),
-		)
+# The Max Active Invoices check (Customer.custom_max_active_invoices) is the Server Script "Sales Invoice - Batas
+# Invoice Aktif" (Before Submit) since 2026-11-16; the BP Settings switch enforce_active_invoice_limit still drives it.
 
 
 # ---------------------------------------------------------------------------

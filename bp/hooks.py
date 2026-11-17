@@ -62,14 +62,14 @@ update_website_context = ["bp.storefront.app_shell.update_website_context"]
 
 # include js in doctype views
 doctype_js = {
-	"Stock Entry": "public/js/stock_entry.js",
-	"Sales Invoice": ["public/js/sales_invoice.js", "public/js/update_stock_lock.js"],
-	"Purchase Invoice": ["public/js/purchase_invoice.js", "public/js/update_stock_lock.js"],
+	"Sales Invoice": "public/js/sales_invoice.js",
+	"Purchase Invoice": "public/js/purchase_invoice.js",
 	"Purchase Order": "public/js/purchase_order.js",
-	"POS Invoice": "public/js/update_stock_lock.js",
 	"Sales Order": "public/js/sales_order.js",
 	"Customer": "public/js/customer.js",
 }
+# The Update Stock lock, Stock Entry role rule and Sales Person <-> Sales Team sync moved to Client Scripts and Server
+# Scripts owned by the site (2026-11-16; sources in Client/BP/bp-dev/scripts/server_scripts and client_scripts).
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -179,40 +179,26 @@ jinja = {
 # }
 
 doc_events = {
+	# Moved to Server Scripts on the site (2026-11-16): Update Stock lock (SI, PI, POS Invoice), Update Stock 0 for an invoice
+	# made from a Surat Jalan, Sales Team from bp_sales_person, Active Invoice Limit, Mode of Payment on Payment Entry,
+	# Purchase Invoice Expense Head, Stock Entry role rule. Sources: Client/BP/bp-dev/scripts/server_scripts.
 	"Sales Invoice": {
-		"before_insert": "bp.overrides.sales_invoice.before_insert",
 		"before_naming": "bp.overrides.sales_invoice.before_naming",
-		"validate": [
-			"bp.overrides.sales_invoice.validate",
-			"bp.overrides.update_stock_lock.validate",
-		],
 		"before_validate": "bp.overrides.sales_invoice.recalculate_cascading_discount",
-		"before_submit": "bp.overrides.sales_invoice.check_active_invoice_limit",
 		"before_print": "bp.overrides.sales_invoice.before_print",
 	},
 	"Purchase Invoice": {
 		"before_naming": "bp.overrides.purchase_invoice.before_naming",
-		"before_validate": [
-			"bp.overrides.purchase_invoice.before_validate",
-			"bp.utils.cascading_discount.recalculate_cascading_discount",
-		],
-		"validate": "bp.overrides.update_stock_lock.validate",
+		"before_validate": "bp.utils.cascading_discount.recalculate_cascading_discount",
 	},
 	"Purchase Order": {
 		"before_validate": "bp.utils.cascading_discount.recalculate_cascading_discount",
 	},
-	"POS Invoice": {
-		"validate": "bp.overrides.update_stock_lock.validate",
-	},
 	"Sales Order": {
 		"before_validate": "bp.overrides.sales_order.recalculate_cascading_discount",
 	},
-	"Payment Entry": {
-		"validate": "bp.overrides.payment_entry.validate",
-	},
 	"Stock Entry": {
 		"before_naming": "bp.overrides.stock_entry.before_naming",
-		"validate": "bp.overrides.stock_entry.validate",
 	},
 	"Customer": {
 		"autoname": "bp.overrides.naming.autoname",

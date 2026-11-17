@@ -1,7 +1,7 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from bp.overrides.sales_invoice import before_insert, before_naming, get_warehouse_name_code
+from bp.overrides.sales_invoice import before_naming, get_warehouse_name_code
 from bp.overrides.series import (
 	SALES_INVOICE_SERIES_OCT15,
 	SALES_NON_STOCK_SERIES_OCT15,
@@ -40,20 +40,15 @@ class IntegrationTestSalesInvoiceRules(IntegrationTestCase):
 		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
 
 	def test_invoice_from_delivery_note_is_a_goods_invoice(self):
-		"""Billed from a Surat Jalan: Update Stock off, but it sells goods, so
-		INV- and not the value-only ND- series."""
+		"""Billed from a Surat Jalan: Update Stock off (set by the Server Script "Sales Invoice - Update Stock Nol dari
+		Surat Jalan" before naming), but it sells goods, so INV- and not the value-only ND- series."""
 		doc = invoice(
-			set_warehouse=None, items=[frappe._dict(delivery_note="DO-A26100001", warehouse="A - BP")]
+			update_stock=0,
+			set_warehouse=None,
+			items=[frappe._dict(delivery_note="DO-A26100001", warehouse="A - BP")],
 		)
-		before_insert(doc)
-		self.assertEqual(doc.update_stock, 0)
 		before_naming(doc)
 		self.assertEqual(doc.naming_series, SALES_INVOICE_SERIES_OCT15)
-
-	def test_return_keeps_its_update_stock(self):
-		doc = invoice(is_return=1, items=[frappe._dict(delivery_note="DO-A26100001")])
-		before_insert(doc)
-		self.assertEqual(doc.update_stock, 1)
 
 	def test_a_series_picked_deliberately_is_left_alone(self):
 		doc = invoice(update_stock=0, set_warehouse=None, naming_series="ACC-SINV-.YYYY.-")

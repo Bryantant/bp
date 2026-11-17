@@ -1,14 +1,8 @@
 frappe.ui.form.on("Customer", {
+	// The Sales Person <-> Sales Team sync is the Client Script "Customer - Sales Person ke Sales Team" and the Sales Person
+	// filter is a Link Filter on the site since 2026-11-16.
 	refresh: function (frm) {
-		frm.set_query("bp_sales_person", function () {
-			return { filters: { is_group: 0 } };
-		});
-		bp.customer.sync_from_table(frm);
 		bp.customer.render_location_preview(frm);
-	},
-
-	bp_sales_person: function (frm) {
-		bp.customer.push_to_table(frm);
 	},
 
 	custom_titik_koordinat: function (frm) {
@@ -31,24 +25,6 @@ bp.customer = {
 	// Google's own short-link hosts -- these are opaque tokens that need a
 	// server-side redirect resolution (see bp.overrides.customer.resolve_maps_link).
 	SHORT_LINK_HOSTS: ["maps.app.goo.gl", "goo.gl", "g.co"],
-
-	sync_from_table: function (frm) {
-		var first = frm.doc.sales_team && frm.doc.sales_team[0];
-		if (first && first.sales_person && frm.doc.bp_sales_person !== first.sales_person) {
-			frm.set_value("bp_sales_person", first.sales_person);
-		}
-	},
-
-	push_to_table: function (frm) {
-		var person = frm.doc.bp_sales_person;
-		frm.clear_table("sales_team");
-		if (person) {
-			var row = frm.add_child("sales_team");
-			row.sales_person = person;
-			row.allocated_percentage = 100;
-		}
-		frm.refresh_field("sales_team");
-	},
 
 	is_valid_latlng: function (lat, lng) {
 		return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
