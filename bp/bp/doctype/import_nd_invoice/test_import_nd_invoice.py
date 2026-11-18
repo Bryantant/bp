@@ -154,8 +154,35 @@ class TestImportNDInvoiceEndToEnd(FrappeTestCase):
 		self.assertFalse(si.sales_team)
 		self.assertFalse(frappe.db.exists("Stock Ledger Entry", {"voucher_no": si.name}))
 
+		# The batch is only a tool: cancelling it leaves the invoice alone (Bry 2026-11-18)
 		batch.cancel()
-		self.assertEqual(frappe.db.get_value("Sales Invoice", si.name, "docstatus"), 2)
+		self.assertEqual(frappe.db.get_value("Sales Invoice", si.name, "docstatus"), 1)
+
+	def test_invoice_cancels_alone_while_batch_stays_submitted(self):
+		"""The batch row holds the invoice name as text, so it does not link-block cancelling."""
+		nd_code = frappe.db.get_value("Customer", {"custom_nd_code": ["is", "set"], "disabled": 0}, "custom_nd_code")
+		batch = frappe.get_doc(
+			{
+				"doctype": "Import ND Invoice",
+				"rows": [
+					{
+						"nd_invoice_no": "TEST-ND-ALONE-1",
+						"cust_code_nd": nd_code,
+						"invoice_date": frappe.utils.today(),
+						"amount": 7000,
+					}
+				],
+			}
+		).insert(ignore_permissions=True)
+		batch.submit()
+		name = batch.rows[0].sales_invoice
+
+		frappe.get_doc("Sales Invoice", name).cancel()  # must not raise LinkExistsError
+
+		self.assertEqual(frappe.db.get_value("Sales Invoice", name, "docstatus"), 2)
+		batch.reload()
+		self.assertEqual(batch.docstatus, 1)
+		self.assertEqual(batch.rows[0].sales_invoice, name)
 
 	def test_submit_sets_sales_person_from_salesman(self):
 		person = frappe.db.get_value("Sales Person", {"enabled": 1, "is_group": 0}, "name")

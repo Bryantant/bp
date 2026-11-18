@@ -5,8 +5,13 @@ from the ND System -- a separate, currently-active system this integration
 pulls invoice data from on an ongoing basis. ND itself is not legacy; only
 the old Access-based tool being replaced here is. Modeled on
 iib.iib.doctype.so_batch.so_batch.SOBatch: one submittable parent document
-holding an editable child-table grid; Submit creates the target documents,
-Cancel reverses them.
+holding an editable child-table grid; Submit creates the target documents.
+
+The batch is only an import tool, not a ledger of the invoices (Bry 2026-11-18): the
+Sales Invoice column on each row is plain text, not a Link, and cancelling the batch
+leaves its invoices alone. Otherwise a submitted batch blocked cancelling any one of its
+invoices ("Cancel All Documents" would have cancelled all of them, paid ones included).
+Each invoice is cancelled or amended on its own, from its own form.
 
 Each Sales Invoice is named after the ND "Invoice Number" from the Excel file
 (e.g. I260700167), not the BP naming series -- client decision 2026-10-17.
@@ -198,9 +203,6 @@ class ImportNDInvoice(Document):
 		finally:
 			frappe.flags.bp_nd_import = False
 
-	def on_cancel(self):
-		self.cancel_related_sales_invoices()
-
 	def create_sales_invoices(self):
 		"""before_submit() already guaranteed every row is valid -- this just creates."""
 		placeholder_item = frappe.db.get_single_value("BP Settings", "import_placeholder_item")
@@ -241,16 +243,6 @@ class ImportNDInvoice(Document):
 		for name in created:
 			lines.append(f"&bull; <a href='/app/sales-invoice/{name}'>{name}</a>")
 		frappe.msgprint("<br>".join(lines), title=_("Import Complete"), indicator="green")
-
-	def cancel_related_sales_invoices(self):
-		for row in self.rows:
-			if not row.sales_invoice or not frappe.db.exists("Sales Invoice", row.sales_invoice):
-				continue
-			si = frappe.get_doc("Sales Invoice", row.sales_invoice)
-			if si.docstatus == 1:
-				si.cancel()
-			else:
-				frappe.delete_doc("Sales Invoice", si.name, force=True, ignore_permissions=True)
 
 
 MONTHS = {

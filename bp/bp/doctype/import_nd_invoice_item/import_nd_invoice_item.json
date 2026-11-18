@@ -88,16 +88,16 @@
    "columns": 1
   },
   {
+   "description": "Name of the Sales Invoice created from this row. Plain text on purpose, not a link: this batch is only an import tool and must not block cancelling or deleting the invoice.",
    "fieldname": "sales_invoice",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "label": "Sales Invoice",
-   "options": "Sales Invoice",
    "read_only": 1
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-10-19 14:06:21.305164",
+ "modified": "2026-11-18 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "BP",
  "name": "Import ND Invoice Item",
